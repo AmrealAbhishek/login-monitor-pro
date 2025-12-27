@@ -250,26 +250,48 @@ class CommandListener:
             screenshot_path = BASE_DIR / "captured_images" / f"screenshot_{timestamp}.png"
             screenshot_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Get current user's UID for launchctl asuser
-            uid_result = subprocess.run(["id", "-u"], capture_output=True, text=True)
-            uid = uid_result.stdout.strip()
+            # Method 1: Try Quartz/CoreGraphics (works from LaunchAgent if Python has permission)
+            try:
+                import Quartz
+                from Quartz import CGWindowListCreateImage, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
+                import objc
 
-            # Use launchctl asuser to run in user's GUI session (has screen recording permission)
-            result = subprocess.run(
-                ["launchctl", "asuser", uid, "screencapture", "-x", str(screenshot_path)],
-                capture_output=True, timeout=10
-            )
+                # Capture all screens
+                image = CGWindowListCreateImage(
+                    Quartz.CGRectInfinite,
+                    kCGWindowListOptionOnScreenOnly,
+                    kCGNullWindowID,
+                    Quartz.kCGWindowImageDefault
+                )
 
-            # Fallback: try direct screencapture
+                if image:
+                    # Save to file
+                    from Quartz import CGImageDestinationCreateWithURL, CGImageDestinationAddImage, CGImageDestinationFinalize
+                    from CoreFoundation import CFURLCreateWithFileSystemPath, kCFURLPOSIXPathStyle
+
+                    url = CFURLCreateWithFileSystemPath(None, str(screenshot_path), kCFURLPOSIXPathStyle, False)
+                    dest = CGImageDestinationCreateWithURL(url, "public.png", 1, None)
+                    if dest:
+                        CGImageDestinationAddImage(dest, image, None)
+                        CGImageDestinationFinalize(dest)
+                        log("[INFO] Screenshot captured via Quartz")
+            except Exception as e:
+                log(f"[WARN] Quartz screenshot failed: {e}")
+
+            # Method 2: Try direct screencapture
             if not screenshot_path.exists():
-                subprocess.run(["screencapture", "-x", str(screenshot_path)],
+                result = subprocess.run(["screencapture", "-x", str(screenshot_path)],
                                capture_output=True, timeout=10)
+                if screenshot_path.exists():
+                    log("[INFO] Screenshot captured via screencapture")
 
-            # Fallback: try via osascript
+            # Method 3: Try via osascript
             if not screenshot_path.exists():
                 applescript = f'do shell script "screencapture -x \'{screenshot_path}\'"'
                 subprocess.run(["osascript", "-e", applescript],
                               capture_output=True, timeout=10)
+                if screenshot_path.exists():
+                    log("[INFO] Screenshot captured via osascript")
 
             # Upload screenshot
             screenshot_url = None
