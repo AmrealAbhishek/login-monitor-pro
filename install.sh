@@ -24,6 +24,7 @@ NC='\033[0m'
 # ============================================
 DEFAULT_SUPABASE_URL="https://uldaniwnnwuiyyfygsxa.supabase.co"
 DEFAULT_SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZGFuaXdubnd1aXl5Znlnc3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDY4NjEsImV4cCI6MjA4MjQyMjg2MX0._9OU-el7-1I7aS_VLLdhjjexOFQdg0TQ7LI3KI6a2a4"
+DEFAULT_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZGFuaXdubnd1aXl5Znlnc3hhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Njg0Njg2MSwiZXhwIjoyMDgyNDIyODYxfQ.TEcxmXe628_DJILYNOtFVXDMFDku4xL7v9IDCNkI0zo"
 # ============================================
 
 # Paths
@@ -113,15 +114,17 @@ if [[ "$SETUP_CHOICE" == "2" ]]; then
     echo -e "${YELLOW}Enter your Supabase credentials:${NC}"
     read -p "Supabase Project URL (https://xxx.supabase.co): " SUPABASE_URL < /dev/tty
     read -p "Supabase Anon Key: " SUPABASE_KEY < /dev/tty
+    read -p "Supabase Service Role Key: " SERVICE_KEY < /dev/tty
 
-    if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" ]]; then
-        echo -e "${RED}Error: Supabase URL and Key are required!${NC}"
+    if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" || -z "$SERVICE_KEY" ]]; then
+        echo -e "${RED}Error: Supabase URL, Anon Key, and Service Key are required!${NC}"
         exit 1
     fi
 else
     # Use default credentials
     SUPABASE_URL="$DEFAULT_SUPABASE_URL"
     SUPABASE_KEY="$DEFAULT_SUPABASE_KEY"
+    SERVICE_KEY="$DEFAULT_SERVICE_KEY"
     echo -e "${GREEN}✓ Using Login Monitor PRO cloud${NC}"
 fi
 
@@ -157,6 +160,7 @@ cat > "$INSTALL_DIR/config.json" << EOF
   "supabase": {
     "url": "$SUPABASE_URL",
     "anon_key": "$SUPABASE_KEY",
+    "service_key": "$SERVICE_KEY",
     "device_id": "$DEVICE_ID"
   },
   "pairing": {
