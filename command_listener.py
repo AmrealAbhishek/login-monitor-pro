@@ -271,13 +271,13 @@ class CommandListener:
             # Method 1: Try screencapture command (most reliable with permissions)
             try:
                 result = subprocess.run(
-                    ["screencapture", "-x", str(screenshot_path)],
+                    ["/usr/sbin/screencapture", "-x", str(screenshot_path)],
                     capture_output=True, timeout=15
                 )
-                if screenshot_path.exists() and screenshot_path.stat().st_size > 500000:
+                if screenshot_path.exists() and screenshot_path.stat().st_size > 100000:
                     log("[INFO] Screenshot captured via screencapture")
                 else:
-                    # File too small = just wallpaper, try other methods
+                    # File too small = likely failed
                     if screenshot_path.exists():
                         screenshot_path.unlink()
             except Exception as e:
@@ -286,10 +286,10 @@ class CommandListener:
             # Method 2: Try via osascript (runs in user context)
             if not screenshot_path.exists():
                 try:
-                    applescript = f'do shell script "screencapture -x \'{screenshot_path}\'"'
+                    applescript = f'do shell script "/usr/sbin/screencapture -x \'{screenshot_path}\'"'
                     subprocess.run(["osascript", "-e", applescript],
                                   capture_output=True, timeout=15)
-                    if screenshot_path.exists() and screenshot_path.stat().st_size > 500000:
+                    if screenshot_path.exists() and screenshot_path.stat().st_size > 100000:
                         log("[INFO] Screenshot captured via osascript")
                     elif screenshot_path.exists():
                         screenshot_path.unlink()
@@ -318,7 +318,7 @@ class CommandListener:
                             CGImageDestinationAddImage(dest, image, None)
                             CGImageDestinationFinalize(dest)
                             # Check if Quartz captured real content or just wallpaper
-                            if screenshot_path.exists() and screenshot_path.stat().st_size > 500000:
+                            if screenshot_path.exists() and screenshot_path.stat().st_size > 100000:
                                 log("[INFO] Screenshot captured via Quartz")
                             elif screenshot_path.exists():
                                 log("[WARN] Quartz captured wallpaper only - missing Screen Recording permission")
