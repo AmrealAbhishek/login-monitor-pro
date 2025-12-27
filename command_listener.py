@@ -317,7 +317,12 @@ class CommandListener:
                         if dest:
                             CGImageDestinationAddImage(dest, image, None)
                             CGImageDestinationFinalize(dest)
-                            log("[INFO] Screenshot captured via Quartz")
+                            # Check if Quartz captured real content or just wallpaper
+                            if screenshot_path.exists() and screenshot_path.stat().st_size > 500000:
+                                log("[INFO] Screenshot captured via Quartz")
+                            elif screenshot_path.exists():
+                                log("[WARN] Quartz captured wallpaper only - missing Screen Recording permission")
+                                screenshot_path.unlink()
                 except Exception as e:
                     log(f"[WARN] Quartz screenshot failed: {e}")
 
@@ -326,8 +331,18 @@ class CommandListener:
             if screenshot_path.exists() and self.client and self.device_id:
                 screenshot_url = self.client.upload_file(self.device_id, str(screenshot_path), "photos")
 
+            # Check if we got a real screenshot
+            if not screenshot_path.exists():
+                log("[ERROR] Screenshot failed - Screen Recording permission required")
+                log("[ERROR] Add Python.app to System Settings > Privacy & Security > Screen Recording")
+                log("[ERROR] Then log out and log back in for permission to take effect")
+                return {
+                    "success": False,
+                    "error": "Screen Recording permission required. Add Python.app to Screen Recording in System Settings, then restart Mac."
+                }
+
             return {
-                "success": screenshot_path.exists(),
+                "success": True,
                 "screenshot_url": screenshot_url
             }
         except Exception as e:
