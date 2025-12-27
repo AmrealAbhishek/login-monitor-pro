@@ -27,9 +27,9 @@ DEFAULT_SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 # ============================================
 
 # Paths
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.login-monitor"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+GITHUB_RAW="https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main"
 
 echo -e "${CYAN}"
 echo "╔════════════════════════════════════════════════════════════╗"
@@ -81,14 +81,21 @@ echo "Installing Python packages..."
 $PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa 2>/dev/null || true
 echo -e "${GREEN}✓ Python packages${NC}"
 
-echo -e "${BLUE}[3/7]${NC} Installing files..."
+echo -e "${BLUE}[3/7]${NC} Downloading and installing files..."
 
 # Create directories
 mkdir -p "$INSTALL_DIR"/{captures,events,audio,captured_images,captured_audio,activity_logs,known_faces}
 mkdir -p "$LAUNCH_AGENTS_DIR"
 
-# Copy Python files
-cp "$SCRIPT_DIR"/*.py "$INSTALL_DIR/" 2>/dev/null || true
+# Download Python files from GitHub
+PYTHON_FILES="screen_watcher.py pro_monitor.py command_listener.py supabase_client.py"
+for file in $PYTHON_FILES; do
+    echo "  Downloading $file..."
+    curl -fsSL "$GITHUB_RAW/$file" -o "$INSTALL_DIR/$file" || {
+        echo -e "${RED}Failed to download $file${NC}"
+        exit 1
+    }
+done
 chmod +x "$INSTALL_DIR"/*.py
 echo -e "${GREEN}✓ Files installed to $INSTALL_DIR${NC}"
 
