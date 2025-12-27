@@ -147,8 +147,7 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
         \"id\": \"${DEVICE_ID}\",
         \"hostname\": \"${HOSTNAME}\",
         \"os_version\": \"macOS ${OS_VERSION}\",
-        \"pairing_code\": \"${PAIRING_CODE}\",
-        \"pairing_expires_at\": \"${PAIRING_EXPIRY_ISO}\",
+        \"device_code\": \"${PAIRING_CODE}\",
         \"is_active\": true
     }" >/dev/null 2>&1 || true
 
@@ -344,8 +343,7 @@ device_id = config['supabase']['device_id']
 # Update device in Supabase
 try:
     update_data = json.dumps({
-        'pairing_code': '$CODE',
-        'pairing_expires_at': '$EXPIRY_ISO'
+        'device_code': '$CODE'
     }).encode('utf-8')
 
     req = urllib.request.Request(
