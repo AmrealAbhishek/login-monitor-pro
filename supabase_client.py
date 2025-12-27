@@ -274,8 +274,8 @@ class SupabaseClient:
 
             with urllib.request.urlopen(req, timeout=60) as response:
                 if response.status in [200, 201]:
-                    # Return signed URL for private buckets (expires in 1 hour)
-                    signed_url = self.get_signed_url(bucket, filename, expires_in=3600)
+                    # Return signed URL for private buckets (expires in 7 days)
+                    signed_url = self.get_signed_url(bucket, filename, expires_in=604800)
                     return signed_url or f"{self.url}/storage/v1/object/{bucket}/{filename}"
 
             return None
