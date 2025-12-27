@@ -9,6 +9,9 @@
 
 set -e
 
+# Redirect stdin from terminal (needed for curl | bash)
+exec < /dev/tty
+
 VERSION="2.0.0"
 
 # Colors
