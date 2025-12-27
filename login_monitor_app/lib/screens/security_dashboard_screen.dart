@@ -308,7 +308,7 @@ class _SecurityDashboardScreenState extends State<SecurityDashboardScreen>
       case 'Login':
         return CyberColors.neonCyan;
       case 'Unlock':
-        return CyberColors.neonCyanLight;
+        return CyberColors.primaryRedLight;
       case 'Intruder':
         return CyberColors.alertRed;
       case 'UnknownUSB':

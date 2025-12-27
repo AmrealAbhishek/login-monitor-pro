@@ -1,32 +1,39 @@
 import 'package:flutter/material.dart';
 
-/// Cyber Neon Theme Colors for Login Monitor PRO v3.0
+/// Theme Colors for Login Monitor PRO v3.0
+/// Color Scheme: White, Red (#FF0000), Black
 class CyberColors {
-  // Primary Neon Colors
-  static const Color neonCyan = Color(0xFF06E6DA);
-  static const Color neonCyanLight = Color(0xFF1EDAD0);
-  static const Color neonCyanDark = Color(0xFF05B8AE);
+  // Primary Colors
+  static const Color primaryRed = Color(0xFFFF0000);
+  static const Color primaryRedLight = Color(0xFFFF4444);
+  static const Color primaryRedDark = Color(0xFFCC0000);
 
   // Background Colors
-  static const Color darkBackground = Color(0xFF0C1F1F);
+  static const Color pureWhite = Color(0xFFFFFFFF);
   static const Color pureBlack = Color(0xFF000000);
-  static const Color cardBackground = Color(0xFF0F2828);
-  static const Color surfaceColor = Color(0xFF1A3333);
+  static const Color darkBackground = Color(0xFF111111);
+  static const Color cardBackground = Color(0xFF1A1A1A);
+  static const Color surfaceColor = Color(0xFF222222);
+  static const Color lightGray = Color(0xFFF5F5F5);
 
   // Text Colors
-  static const Color textPrimary = Color(0xFFFDFEFE);
-  static const Color textSecondary = Color(0xFFB0C4C4);
-  static const Color textMuted = Color(0xFF6B8A8A);
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textOnLight = Color(0xFF000000);
+  static const Color textSecondary = Color(0xFFAAAAAA);
+  static const Color textMuted = Color(0xFF666666);
 
-  // Alert Colors
-  static const Color alertRed = Color(0xFFFF3B3B);
-  static const Color successGreen = Color(0xFF00FF88);
-  static const Color warningOrange = Color(0xFFFFB347);
-  static const Color infoBlue = Color(0xFF4DA6FF);
+  // Accent Colors (keeping for alerts)
+  static const Color alertRed = Color(0xFFFF0000);
+  static const Color successGreen = Color(0xFF00CC66);
+  static const Color warningOrange = Color(0xFFFF9900);
+  static const Color infoBlue = Color(0xFF3399FF);
+
+  // For backward compatibility - map old names to new colors
+  static const Color neonCyan = primaryRed; // Now uses red instead of cyan
 
   // Gradient
-  static const LinearGradient neonGradient = LinearGradient(
-    colors: [neonCyan, neonCyanLight],
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [primaryRed, primaryRedDark],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -38,23 +45,23 @@ class CyberColors {
   );
 }
 
-/// Cyber Theme for Login Monitor PRO
+/// Theme for Login Monitor PRO
 class CyberTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: CyberColors.pureBlack,
-      primaryColor: CyberColors.neonCyan,
+      primaryColor: CyberColors.primaryRed,
 
       // Color Scheme
       colorScheme: const ColorScheme.dark(
-        primary: CyberColors.neonCyan,
-        secondary: CyberColors.neonCyanLight,
+        primary: CyberColors.primaryRed,
+        secondary: CyberColors.primaryRedLight,
         surface: CyberColors.cardBackground,
         error: CyberColors.alertRed,
-        onPrimary: CyberColors.pureBlack,
-        onSecondary: CyberColors.pureBlack,
+        onPrimary: CyberColors.pureWhite,
+        onSecondary: CyberColors.pureWhite,
         onSurface: CyberColors.textPrimary,
         onError: CyberColors.textPrimary,
       ),
@@ -66,12 +73,12 @@ class CyberTheme {
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
-          color: CyberColors.neonCyan,
+          color: CyberColors.primaryRed,
           fontSize: 20,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
         ),
-        iconTheme: IconThemeData(color: CyberColors.neonCyan),
+        iconTheme: IconThemeData(color: CyberColors.primaryRed),
       ),
 
       // Card Theme
@@ -80,7 +87,7 @@ class CyberTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: CyberColors.neonCyan, width: 1),
+          side: const BorderSide(color: CyberColors.primaryRed, width: 1),
         ),
         margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
       ),
@@ -88,8 +95,8 @@ class CyberTheme {
       // Elevated Button Theme
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: CyberColors.neonCyan,
-          foregroundColor: CyberColors.pureBlack,
+          backgroundColor: CyberColors.primaryRed,
+          foregroundColor: CyberColors.pureWhite,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -104,9 +111,9 @@ class CyberTheme {
       // Outlined Button Theme
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: CyberColors.neonCyan,
+          foregroundColor: CyberColors.primaryRed,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          side: const BorderSide(color: CyberColors.neonCyan, width: 1.5),
+          side: const BorderSide(color: CyberColors.primaryRed, width: 1.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -116,8 +123,8 @@ class CyberTheme {
       // Filled Button Theme
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: CyberColors.neonCyan,
-          foregroundColor: CyberColors.pureBlack,
+          backgroundColor: CyberColors.primaryRed,
+          foregroundColor: CyberColors.pureWhite,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -128,13 +135,13 @@ class CyberTheme {
       // Text Button Theme
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: CyberColors.neonCyan,
+          foregroundColor: CyberColors.primaryRed,
         ),
       ),
 
       // Icon Theme
       iconTheme: const IconThemeData(
-        color: CyberColors.neonCyan,
+        color: CyberColors.primaryRed,
         size: 24,
       ),
 
@@ -152,7 +159,7 @@ class CyberTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: CyberColors.neonCyan, width: 2),
+          borderSide: const BorderSide(color: CyberColors.primaryRed, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -165,11 +172,11 @@ class CyberTheme {
       // Navigation Bar Theme
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: CyberColors.pureBlack,
-        indicatorColor: CyberColors.neonCyan.withOpacity(0.2),
+        indicatorColor: CyberColors.primaryRed.withOpacity(0.2),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(
-              color: CyberColors.neonCyan,
+              color: CyberColors.primaryRed,
               fontWeight: FontWeight.bold,
               fontSize: 12,
             );
@@ -181,7 +188,7 @@ class CyberTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: CyberColors.neonCyan);
+            return const IconThemeData(color: CyberColors.primaryRed);
           }
           return const IconThemeData(color: CyberColors.textMuted);
         }),
@@ -190,14 +197,14 @@ class CyberTheme {
       // Bottom Navigation Bar Theme
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: CyberColors.pureBlack,
-        selectedItemColor: CyberColors.neonCyan,
+        selectedItemColor: CyberColors.primaryRed,
         unselectedItemColor: CyberColors.textMuted,
       ),
 
       // Floating Action Button Theme
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: CyberColors.neonCyan,
-        foregroundColor: CyberColors.pureBlack,
+        backgroundColor: CyberColors.primaryRed,
+        foregroundColor: CyberColors.pureWhite,
       ),
 
       // Snackbar Theme
@@ -206,7 +213,7 @@ class CyberTheme {
         contentTextStyle: const TextStyle(color: CyberColors.textPrimary),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: CyberColors.neonCyan),
+          side: const BorderSide(color: CyberColors.primaryRed),
         ),
         behavior: SnackBarBehavior.floating,
       ),
@@ -216,10 +223,10 @@ class CyberTheme {
         backgroundColor: CyberColors.darkBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: CyberColors.neonCyan),
+          side: const BorderSide(color: CyberColors.primaryRed),
         ),
         titleTextStyle: const TextStyle(
-          color: CyberColors.neonCyan,
+          color: CyberColors.primaryRed,
           fontSize: 20,
           fontWeight: FontWeight.bold,
         ),
@@ -238,20 +245,20 @@ class CyberTheme {
       // List Tile Theme
       listTileTheme: const ListTileThemeData(
         textColor: CyberColors.textPrimary,
-        iconColor: CyberColors.neonCyan,
+        iconColor: CyberColors.primaryRed,
       ),
 
       // Switch Theme
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return CyberColors.neonCyan;
+            return CyberColors.primaryRed;
           }
           return CyberColors.textMuted;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return CyberColors.neonCyan.withOpacity(0.5);
+            return CyberColors.primaryRed.withOpacity(0.5);
           }
           return CyberColors.surfaceColor;
         }),
@@ -260,9 +267,9 @@ class CyberTheme {
       // Chip Theme
       chipTheme: ChipThemeData(
         backgroundColor: CyberColors.surfaceColor,
-        selectedColor: CyberColors.neonCyan,
+        selectedColor: CyberColors.primaryRed,
         labelStyle: const TextStyle(color: CyberColors.textPrimary),
-        side: const BorderSide(color: CyberColors.neonCyan),
+        side: const BorderSide(color: CyberColors.primaryRed),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -270,17 +277,17 @@ class CyberTheme {
 
       // Progress Indicator Theme
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: CyberColors.neonCyan,
+        color: CyberColors.primaryRed,
         circularTrackColor: CyberColors.surfaceColor,
         linearTrackColor: CyberColors.surfaceColor,
       ),
 
       // Slider Theme
       sliderTheme: SliderThemeData(
-        activeTrackColor: CyberColors.neonCyan,
+        activeTrackColor: CyberColors.primaryRed,
         inactiveTrackColor: CyberColors.surfaceColor,
-        thumbColor: CyberColors.neonCyan,
-        overlayColor: CyberColors.neonCyan.withOpacity(0.2),
+        thumbColor: CyberColors.primaryRed,
+        overlayColor: CyberColors.primaryRed.withOpacity(0.2),
       ),
 
       // Text Theme
@@ -302,7 +309,7 @@ class CyberTheme {
           fontWeight: FontWeight.bold,
         ),
         headlineLarge: TextStyle(
-          color: CyberColors.neonCyan,
+          color: CyberColors.primaryRed,
           fontSize: 22,
           fontWeight: FontWeight.bold,
         ),
@@ -361,11 +368,11 @@ class CyberTheme {
   }
 }
 
-/// Extension for easy access to cyber colors
+/// Extension for easy access to theme colors
 extension CyberColorExtension on BuildContext {
   CyberColors get cyberColors => CyberColors();
 
-  Color get neonCyan => CyberColors.neonCyan;
+  Color get primaryRed => CyberColors.primaryRed;
   Color get alertRed => CyberColors.alertRed;
   Color get successGreen => CyberColors.successGreen;
   Color get warningOrange => CyberColors.warningOrange;

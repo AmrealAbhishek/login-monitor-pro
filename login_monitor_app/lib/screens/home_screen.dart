@@ -603,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const Icon(
               Icons.star,
-              color: CyberColors.neonCyan,
+              color: CyberColors.primaryRed,
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -611,12 +611,13 @@ class _HomeScreenState extends State<HomeScreen> {
               'PRO Features',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: CyberColors.neonCyan,
+                    color: CyberColors.primaryRed,
                   ),
             ),
           ],
         ),
         const SizedBox(height: 12),
+        // First row
         Row(
           children: [
             Expanded(
@@ -624,7 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.security,
                 title: 'Security',
                 subtitle: 'Dashboard',
-                color: CyberColors.neonCyan,
+                color: CyberColors.primaryRed,
                 onTap: () => Navigator.pushNamed(context, '/security'),
               ),
             ),
@@ -634,8 +635,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.volume_up,
                 title: 'Find',
                 subtitle: 'My Mac',
-                color: CyberColors.alertRed,
+                color: CyberColors.warningOrange,
                 onTap: () => Navigator.pushNamed(context, '/findmac'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Second row
+        Row(
+          children: [
+            Expanded(
+              child: _buildFeatureCard(
+                icon: Icons.location_on,
+                title: 'Geofence',
+                subtitle: 'Setup',
+                color: CyberColors.successGreen,
+                onTap: () => Navigator.pushNamed(context, '/geofence'),
               ),
             ),
             const SizedBox(width: 12),
