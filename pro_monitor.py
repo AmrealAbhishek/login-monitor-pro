@@ -523,13 +523,18 @@ class Capture:
 
                 if imagesnap_cmd:
                     try:
+                        # Use longer warmup (2s) and timeout (30s) for camera initialization
                         result = subprocess.run(
-                            [imagesnap_cmd, "-w", "0.5", str(filepath)],
-                            capture_output=True, text=True, timeout=10
+                            [imagesnap_cmd, "-w", "2.0", str(filepath)],
+                            capture_output=True, text=True, timeout=30
                         )
-                        if result.returncode == 0 and filepath.exists():
+                        if filepath.exists() and filepath.stat().st_size > 0:
                             photos.append(str(filepath))
                             log(f"Photo {i+1}/{count} captured")
+                        else:
+                            log(f"Photo {i+1} not saved or empty", "WARN")
+                    except subprocess.TimeoutExpired:
+                        log(f"Photo {i+1} capture timeout", "ERROR")
                     except Exception as e:
                         log(f"Photo capture error: {e}", "ERROR")
 
