@@ -10,7 +10,12 @@
 set -e
 
 # Redirect stdin from terminal (needed for curl | bash)
-exec < /dev/tty
+if [ -t 0 ]; then
+    # Already have a terminal
+    :
+elif [ -e /dev/tty ]; then
+    exec < /dev/tty
+fi
 
 VERSION="2.0.0"
 
