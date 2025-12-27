@@ -268,36 +268,21 @@ class CommandListener:
             screenshot_path = BASE_DIR / "captured_images" / f"screenshot_{timestamp}.png"
             screenshot_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Method 1: Try screencapture command (most reliable with permissions)
+            # Method 1: Use screencapture command
             try:
                 result = subprocess.run(
                     ["/usr/sbin/screencapture", "-x", str(screenshot_path)],
                     capture_output=True, timeout=15
                 )
-                if screenshot_path.exists() and screenshot_path.stat().st_size > 100000:
+                if screenshot_path.exists() and screenshot_path.stat().st_size > 50000:
                     log("[INFO] Screenshot captured via screencapture")
-                else:
-                    # File too small = likely failed
-                    if screenshot_path.exists():
-                        screenshot_path.unlink()
             except Exception as e:
                 log(f"[WARN] screencapture failed: {e}")
 
-            # Method 2: Try via osascript (runs in user context)
-            if not screenshot_path.exists():
-                try:
-                    applescript = f'do shell script "/usr/sbin/screencapture -x \'{screenshot_path}\'"'
-                    subprocess.run(["osascript", "-e", applescript],
-                                  capture_output=True, timeout=15)
-                    if screenshot_path.exists() and screenshot_path.stat().st_size > 100000:
-                        log("[INFO] Screenshot captured via osascript")
-                    elif screenshot_path.exists():
-                        screenshot_path.unlink()
-                except Exception as e:
-                    log(f"[WARN] osascript screenshot failed: {e}")
-
-            # Method 3: Try Quartz/CoreGraphics as fallback
-            if not screenshot_path.exists():
+            # Method 2: Fallback to Quartz
+            if not screenshot_path.exists() or screenshot_path.stat().st_size < 50000:
+                if screenshot_path.exists():
+                    screenshot_path.unlink()
                 try:
                     import Quartz
                     from Quartz import CGWindowListCreateImage, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
@@ -317,12 +302,7 @@ class CommandListener:
                         if dest:
                             CGImageDestinationAddImage(dest, image, None)
                             CGImageDestinationFinalize(dest)
-                            # Check if Quartz captured real content or just wallpaper
-                            if screenshot_path.exists() and screenshot_path.stat().st_size > 100000:
-                                log("[INFO] Screenshot captured via Quartz")
-                            elif screenshot_path.exists():
-                                log("[WARN] Quartz captured wallpaper only - missing Screen Recording permission")
-                                screenshot_path.unlink()
+                            log("[INFO] Screenshot captured via Quartz")
                 except Exception as e:
                     log(f"[WARN] Quartz screenshot failed: {e}")
 
