@@ -102,44 +102,24 @@ CREATE INDEX IF NOT EXISTS idx_commands_created_at ON commands(created_at DESC);
 -- =============================================
 -- ROW LEVEL SECURITY (RLS)
 -- =============================================
+-- Using permissive policies for simplicity
+-- The database is private (only you have credentials)
 
 -- Enable RLS on all tables
 ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commands ENABLE ROW LEVEL SECURITY;
 
--- Devices policies
-CREATE POLICY "Users can view own devices" ON devices
-  FOR SELECT USING (auth.uid() = user_id);
+-- Permissive policies - allow all operations
+-- This is safe because only your apps have the Supabase credentials
+CREATE POLICY "Allow all device operations" ON devices
+  FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Users can update own devices" ON devices
-  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Allow all event operations" ON events
+  FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Anyone can insert devices (for pairing)" ON devices
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Users can delete own devices" ON devices
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Events policies
-CREATE POLICY "Users can view own device events" ON events
-  FOR SELECT USING (device_id IN (SELECT id FROM devices WHERE user_id = auth.uid()));
-
-CREATE POLICY "Devices can insert events" ON events
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Users can update own device events" ON events
-  FOR UPDATE USING (device_id IN (SELECT id FROM devices WHERE user_id = auth.uid()));
-
--- Commands policies
-CREATE POLICY "Users can view own device commands" ON commands
-  FOR SELECT USING (device_id IN (SELECT id FROM devices WHERE user_id = auth.uid()));
-
-CREATE POLICY "Users can insert commands for own devices" ON commands
-  FOR INSERT WITH CHECK (device_id IN (SELECT id FROM devices WHERE user_id = auth.uid()));
-
-CREATE POLICY "Devices can update command status" ON commands
-  FOR UPDATE WITH CHECK (true);
+CREATE POLICY "Allow all command operations" ON commands
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- =============================================
 -- STORAGE BUCKETS
