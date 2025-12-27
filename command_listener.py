@@ -250,15 +250,24 @@ class CommandListener:
             screenshot_path = BASE_DIR / "captured_images" / f"screenshot_{timestamp}.png"
             screenshot_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Try direct screencapture first
-            result = subprocess.run(["screencapture", "-x", str(screenshot_path)],
-                           capture_output=True, timeout=10)
+            # Get current user's UID for launchctl asuser
+            uid_result = subprocess.run(["id", "-u"], capture_output=True, text=True)
+            uid = uid_result.stdout.strip()
 
-            # If direct capture failed, try via osascript (uses user session)
+            # Use launchctl asuser to run in user's GUI session (has screen recording permission)
+            result = subprocess.run(
+                ["launchctl", "asuser", uid, "screencapture", "-x", str(screenshot_path)],
+                capture_output=True, timeout=10
+            )
+
+            # Fallback: try direct screencapture
             if not screenshot_path.exists():
-                applescript = f'''
-                do shell script "screencapture -x '{screenshot_path}'"
-                '''
+                subprocess.run(["screencapture", "-x", str(screenshot_path)],
+                               capture_output=True, timeout=10)
+
+            # Fallback: try via osascript
+            if not screenshot_path.exists():
+                applescript = f'do shell script "screencapture -x \'{screenshot_path}\'"'
                 subprocess.run(["osascript", "-e", applescript],
                               capture_output=True, timeout=10)
 
