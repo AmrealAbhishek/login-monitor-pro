@@ -252,6 +252,24 @@ launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist"
 
 echo -e "${GREEN}✓ Services started${NC}"
 
+# Request Screen Recording permission
+echo ""
+echo -e "${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${YELLOW}║  IMPORTANT: Screen Recording Permission Required           ║${NC}"
+echo -e "${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "For screenshots to work, you must grant Screen Recording permission:"
+echo -e "  1. System Settings will open automatically"
+echo -e "  2. Click ${GREEN}+${NC} button"
+echo -e "  3. Add: ${CYAN}$PYTHON_CMD${NC}"
+echo -e "  4. Restart your Mac or run: ${CYAN}loginmonitor restart${NC}"
+echo ""
+
+# Open Screen Recording settings
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" 2>/dev/null || true
+
+sleep 2
+
 echo -e "${BLUE}[7/7]${NC} Creating CLI command..."
 
 # Create CLI
