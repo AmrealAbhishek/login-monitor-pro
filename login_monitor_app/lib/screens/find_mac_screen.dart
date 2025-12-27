@@ -7,6 +7,7 @@ import '../widgets/neon_card.dart';
 import '../widgets/cyber_button.dart';
 import '../widgets/pulse_indicator.dart';
 import '../services/supabase_service.dart';
+import '../models/event.dart';
 
 class FindMacScreen extends StatefulWidget {
   const FindMacScreen({super.key});
@@ -20,7 +21,7 @@ class _FindMacScreenState extends State<FindMacScreen>
   bool _isFinding = false;
   bool _isLoading = false;
   int _duration = 60;
-  Map<String, dynamic>? _lastLocation;
+  EventLocation? _lastLocation;
   String? _lastLocationTime;
   Timer? _locationTimer;
 
@@ -52,9 +53,7 @@ class _FindMacScreenState extends State<FindMacScreen>
       final events = await SupabaseService.getEvents(deviceId: deviceId, limit: 50);
 
       for (final event in events) {
-        if (event.location != null &&
-            event.location!['latitude'] != null &&
-            event.location!['longitude'] != null) {
+        if (event.location.hasCoordinates) {
           setState(() {
             _lastLocation = event.location;
             _lastLocationTime = _formatTime(event.timestamp);
@@ -355,7 +354,7 @@ class _FindMacScreenState extends State<FindMacScreen>
         const SizedBox(height: 12),
         NeonCard(
           glowIntensity: 0.2,
-          child: _lastLocation != null
+          child: _lastLocation != null && _lastLocation!.hasCoordinates
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -372,7 +371,7 @@ class _FindMacScreenState extends State<FindMacScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${_lastLocation!['city'] ?? 'Unknown'}, ${_lastLocation!['country'] ?? ''}',
+                                '${_lastLocation!.city ?? 'Unknown'}, ${_lastLocation!.country ?? ''}',
                                 style: const TextStyle(
                                   color: CyberColors.textPrimary,
                                   fontSize: 16,
@@ -409,7 +408,7 @@ class _FindMacScreenState extends State<FindMacScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${_lastLocation!['latitude']?.toStringAsFixed(4) ?? '-'}',
+                              _lastLocation!.latitude?.toStringAsFixed(4) ?? '-',
                               style: const TextStyle(
                                 color: CyberColors.neonCyan,
                                 fontWeight: FontWeight.bold,
@@ -428,7 +427,7 @@ class _FindMacScreenState extends State<FindMacScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${_lastLocation!['longitude']?.toStringAsFixed(4) ?? '-'}',
+                              _lastLocation!.longitude?.toStringAsFixed(4) ?? '-',
                               style: const TextStyle(
                                 color: CyberColors.neonCyan,
                                 fontWeight: FontWeight.bold,
