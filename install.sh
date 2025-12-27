@@ -9,15 +9,6 @@
 
 set -e
 
-# Redirect stdin from terminal (needed for curl | bash)
-# Try to get a terminal for interactive input
-if [ -t 0 ]; then
-    : # Already have a terminal
-else
-    # Try to attach to tty for interactive input
-    exec < /dev/tty 2>/dev/null || true
-fi
-
 VERSION="2.0.0"
 
 # Colors
