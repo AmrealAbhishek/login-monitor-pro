@@ -8,6 +8,8 @@ import '../models/command.dart';
 import '../services/supabase_service.dart';
 import '../widgets/event_card.dart';
 import '../widgets/command_button.dart';
+import '../theme/cyber_theme.dart';
+import '../widgets/neon_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -227,6 +229,10 @@ class _HomeScreenState extends State<HomeScreen> {
             // Device status card
             if (_selectedDevice != null) _buildDeviceStatusCard(),
             const SizedBox(height: 16),
+
+            // PRO Features
+            _buildProFeatures(),
+            const SizedBox(height: 24),
 
             // Quick commands
             Text(
@@ -586,6 +592,113 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildProFeatures() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.star,
+              color: CyberColors.neonCyan,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'PRO Features',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: CyberColors.neonCyan,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildFeatureCard(
+                icon: Icons.security,
+                title: 'Security',
+                subtitle: 'Dashboard',
+                color: CyberColors.neonCyan,
+                onTap: () => Navigator.pushNamed(context, '/security'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFeatureCard(
+                icon: Icons.volume_up,
+                title: 'Find',
+                subtitle: 'My Mac',
+                color: CyberColors.alertRed,
+                onTap: () => Navigator.pushNamed(context, '/findmac'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFeatureCard(
+                icon: Icons.assessment,
+                title: 'Security',
+                subtitle: 'Reports',
+                color: CyberColors.infoBlue,
+                onTap: () => Navigator.pushNamed(context, '/reports'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: CyberColors.cardBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.2),
+              blurRadius: 8,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: CyberColors.textSecondary,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

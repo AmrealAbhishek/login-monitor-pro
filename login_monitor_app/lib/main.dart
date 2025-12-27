@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/supabase_service.dart';
+import 'theme/cyber_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -9,9 +11,23 @@ import 'screens/events_screen.dart';
 import 'screens/event_detail_screen.dart';
 import 'screens/commands_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/security_dashboard_screen.dart';
+import 'screens/find_mac_screen.dart';
+import 'screens/reports_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set system UI overlay style for immersive cyber theme
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: CyberColors.pureBlack,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
   await SupabaseService.initialize();
   runApp(const LoginMonitorApp());
 }
@@ -26,49 +42,10 @@ class LoginMonitorApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Login Monitor PRO',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2196F3),
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            centerTitle: true,
-            elevation: 0,
-          ),
-          cardTheme: CardThemeData(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2196F3),
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            centerTitle: true,
-            elevation: 0,
-          ),
-          cardTheme: CardThemeData(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        themeMode: ThemeMode.system,
+        // Use Cyber Neon Theme (dark only)
+        theme: CyberTheme.darkTheme,
+        darkTheme: CyberTheme.darkTheme,
+        themeMode: ThemeMode.dark,
         initialRoute: '/',
         routes: {
           '/': (context) => const SplashScreen(),
@@ -78,6 +55,9 @@ class LoginMonitorApp extends StatelessWidget {
           '/events': (context) => const EventsScreen(),
           '/commands': (context) => const CommandsScreen(),
           '/settings': (context) => const SettingsScreen(),
+          '/security': (context) => const SecurityDashboardScreen(),
+          '/findmac': (context) => const FindMacScreen(),
+          '/reports': (context) => const ReportsScreen(),
         },
         onGenerateRoute: (settings) {
           if (settings.name == '/event-detail') {

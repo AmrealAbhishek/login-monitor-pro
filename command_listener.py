@@ -405,6 +405,289 @@ class CommandListener:
             return {"success": False, "error": str(e)}
 
     # =========================================================================
+    # NEW ADVANCED COMMANDS (v3.0)
+    # =========================================================================
+
+    def cmd_findme(self, args: dict) -> dict:
+        """Find My Mac - Play loud alarm and stream location"""
+        try:
+            import threading
+
+            duration = args.get("duration", 60)
+            log(f"[INFO] Find My Mac activated for {duration} seconds")
+
+            # Set max volume
+            subprocess.run(["osascript", "-e", "set volume output volume 100"],
+                          capture_output=True)
+
+            # Start location streaming in background
+            def stream_location():
+                end_time = time.time() + duration
+                while time.time() < end_time:
+                    try:
+                        location_result = self.cmd_location({})
+                        if location_result.get("success") and self.client and self.device_id:
+                            self.client.send_event(self.device_id, {
+                                "event_type": "FindMe",
+                                "location": location_result.get("location", {}),
+                                "timestamp": datetime.now().isoformat()
+                            })
+                    except:
+                        pass
+                    time.sleep(30)  # Send location every 30 seconds
+
+            location_thread = threading.Thread(target=stream_location, daemon=True)
+            location_thread.start()
+
+            # Play alarm
+            end_time = time.time() + duration
+            alarm_sounds = [
+                "/System/Library/Sounds/Sosumi.aiff",
+                "/System/Library/Sounds/Funk.aiff",
+                "/System/Library/Sounds/Glass.aiff"
+            ]
+
+            while time.time() < end_time:
+                for sound in alarm_sounds:
+                    if time.time() >= end_time:
+                        break
+                    subprocess.run(["afplay", sound], capture_output=True)
+
+            return {"success": True, "duration": duration, "message": "Find My Mac completed"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_stopfind(self, args: dict) -> dict:
+        """Stop Find My Mac alarm"""
+        try:
+            # Kill any running afplay processes
+            subprocess.run(["pkill", "-f", "afplay"], capture_output=True)
+            return {"success": True, "message": "Find My Mac stopped"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_listusb(self, args: dict) -> dict:
+        """List connected USB devices"""
+        try:
+            from usb_monitor import USBMonitor
+            monitor = USBMonitor()
+            devices = monitor.list_devices()
+            return {"success": True, "devices": devices, "count": len(devices)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_whitelistusb(self, args: dict) -> dict:
+        """Add USB device to whitelist"""
+        try:
+            from usb_monitor import USBMonitor, USBDevice
+            monitor = USBMonitor()
+
+            vendor_id = args.get("vendor_id")
+            product_id = args.get("product_id")
+            name = args.get("name", "Unknown Device")
+
+            if not vendor_id or not product_id:
+                return {"success": False, "error": "vendor_id and product_id required"}
+
+            device = USBDevice(vendor_id, product_id, name)
+            monitor.add_to_whitelist(device)
+
+            return {"success": True, "message": f"Added {name} to USB whitelist"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_listnetworks(self, args: dict) -> dict:
+        """List whitelisted WiFi networks"""
+        try:
+            from network_monitor import NetworkMonitor
+            monitor = NetworkMonitor()
+            networks = monitor.list_known_networks()
+            current = monitor.get_current_wifi()
+
+            return {
+                "success": True,
+                "networks": networks,
+                "current_network": current.get("ssid") if current else None
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_whitelistnetwork(self, args: dict) -> dict:
+        """Add WiFi network to whitelist"""
+        try:
+            from network_monitor import NetworkMonitor
+            monitor = NetworkMonitor()
+
+            ssid = args.get("ssid")
+
+            if not ssid:
+                # Use current network if not specified
+                current = monitor.get_current_wifi()
+                if current:
+                    ssid = current.get("ssid")
+
+            if not ssid:
+                return {"success": False, "error": "ssid required or connect to a network"}
+
+            monitor.add_to_whitelist(ssid)
+            return {"success": True, "message": f"Added '{ssid}' to WiFi whitelist"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_setgeofence(self, args: dict) -> dict:
+        """Create a geofence"""
+        try:
+            from geofence_monitor import GeofenceMonitor
+            monitor = GeofenceMonitor()
+
+            name = args.get("name", "My Location")
+            lat = args.get("lat") or args.get("latitude")
+            lon = args.get("lon") or args.get("longitude")
+            radius = args.get("radius", 500)
+
+            if not lat or not lon:
+                # Use current location if not specified
+                location_result = self.cmd_location({})
+                if location_result.get("success"):
+                    loc = location_result.get("location", {})
+                    lat = loc.get("latitude")
+                    lon = loc.get("longitude")
+
+            if not lat or not lon:
+                return {"success": False, "error": "latitude and longitude required"}
+
+            geofence = monitor.add_geofence(name, float(lat), float(lon), int(radius))
+
+            return {
+                "success": True,
+                "geofence": geofence.to_dict(),
+                "message": f"Geofence '{name}' created"
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_removegeofence(self, args: dict) -> dict:
+        """Remove a geofence"""
+        try:
+            from geofence_monitor import GeofenceMonitor
+            monitor = GeofenceMonitor()
+
+            geofence_id = args.get("id")
+            if not geofence_id:
+                return {"success": False, "error": "geofence id required"}
+
+            monitor.remove_geofence(geofence_id)
+            return {"success": True, "message": "Geofence removed"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_listgeofences(self, args: dict) -> dict:
+        """List all geofences"""
+        try:
+            from geofence_monitor import GeofenceMonitor
+            monitor = GeofenceMonitor()
+            geofences = monitor.list_geofences()
+
+            return {"success": True, "geofences": geofences, "count": len(geofences)}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_generatereport(self, args: dict) -> dict:
+        """Generate a security report"""
+        try:
+            from report_generator import ReportGenerator
+            generator = ReportGenerator()
+
+            report_type = args.get("type", "daily")
+            summary = generator.generate_report(report_type)
+            html_path = generator.generate_html_report(summary)
+
+            return {
+                "success": True,
+                "report_type": report_type,
+                "total_events": summary.get("total_events", 0),
+                "security_alerts": len(summary.get("security_alerts", [])),
+                "html_path": html_path
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_backup(self, args: dict) -> dict:
+        """Create a manual backup"""
+        try:
+            from threat_backup import ThreatBackup
+            backup = ThreatBackup()
+
+            result = backup.create_backup(trigger_event="Manual")
+            return result if result else {"success": False, "error": "Backup failed"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_armmotion(self, args: dict) -> dict:
+        """Arm or disarm motion detection"""
+        try:
+            from motion_detector import MotionDetector
+            detector = MotionDetector()
+
+            enabled = args.get("enabled", True)
+            detector.arm(enabled)
+
+            return {
+                "success": True,
+                "motion_armed": enabled,
+                "message": f"Motion detection {'armed' if enabled else 'disarmed'}"
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_appusage(self, args: dict) -> dict:
+        """Get app usage summary"""
+        try:
+            from app_tracker import AppTracker
+            tracker = AppTracker()
+
+            hours = args.get("hours", 24)
+            summary = tracker.get_usage_summary(hours=hours)
+
+            return {"success": True, "usage": summary}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_listreports(self, args: dict) -> dict:
+        """List all generated reports"""
+        try:
+            from report_generator import ReportGenerator
+            generator = ReportGenerator()
+            reports = generator.list_reports()
+
+            return {"success": True, "reports": reports, "count": len(reports)}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_listbackups(self, args: dict) -> dict:
+        """List all local backups"""
+        try:
+            from threat_backup import ThreatBackup
+            backup = ThreatBackup()
+            backups = backup.list_backups()
+
+            return {"success": True, "backups": backups, "count": len(backups)}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # =========================================================================
     # MAIN LOOP
     # =========================================================================
 
@@ -422,6 +705,7 @@ class CommandListener:
 
         # Command handlers
         handlers = {
+            # Original commands
             "photo": self.cmd_photo,
             "location": self.cmd_location,
             "audio": self.cmd_audio,
@@ -436,6 +720,22 @@ class CommandListener:
             "activity": self.cmd_activity,
             "addface": self.cmd_addface,
             "faces": self.cmd_faces,
+            # New v3.0 commands
+            "findme": self.cmd_findme,
+            "stopfind": self.cmd_stopfind,
+            "listusb": self.cmd_listusb,
+            "whitelistusb": self.cmd_whitelistusb,
+            "listnetworks": self.cmd_listnetworks,
+            "whitelistnetwork": self.cmd_whitelistnetwork,
+            "setgeofence": self.cmd_setgeofence,
+            "removegeofence": self.cmd_removegeofence,
+            "listgeofences": self.cmd_listgeofences,
+            "generatereport": self.cmd_generatereport,
+            "backup": self.cmd_backup,
+            "armmotion": self.cmd_armmotion,
+            "appusage": self.cmd_appusage,
+            "listreports": self.cmd_listreports,
+            "listbackups": self.cmd_listbackups,
         }
 
         handler = handlers.get(cmd_name)

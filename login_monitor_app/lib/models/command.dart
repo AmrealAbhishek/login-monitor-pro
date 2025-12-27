@@ -139,6 +139,7 @@ class CommandDefinition {
 }
 
 const List<CommandDefinition> availableCommands = [
+  // Core Commands
   CommandDefinition(
     command: 'photo',
     name: 'Take Photo',
@@ -214,5 +215,59 @@ const List<CommandDefinition> availableCommands = [
     name: 'Recent Activity',
     description: 'Get recent user activity',
     icon: '📝',
+  ),
+
+  // New v3.0 Security Commands
+  CommandDefinition(
+    command: 'findme',
+    name: 'Find My Mac',
+    description: 'Play alarm and track location',
+    icon: '🔊',
+    defaultArgs: {'duration': 60},
+  ),
+  CommandDefinition(
+    command: 'listusb',
+    name: 'List USB',
+    description: 'List connected USB devices',
+    icon: '🔌',
+  ),
+  CommandDefinition(
+    command: 'listnetworks',
+    name: 'List Networks',
+    description: 'List known WiFi networks',
+    icon: '📡',
+  ),
+  CommandDefinition(
+    command: 'listgeofences',
+    name: 'List Geofences',
+    description: 'List configured geofences',
+    icon: '🗺️',
+  ),
+  CommandDefinition(
+    command: 'appusage',
+    name: 'App Usage',
+    description: 'Get app usage statistics',
+    icon: '📱',
+    defaultArgs: {'hours': 24},
+  ),
+  CommandDefinition(
+    command: 'generatereport',
+    name: 'Generate Report',
+    description: 'Generate security report',
+    icon: '📄',
+    defaultArgs: {'type': 'daily'},
+  ),
+  CommandDefinition(
+    command: 'backup',
+    name: 'Backup Now',
+    description: 'Create manual backup',
+    icon: '💾',
+  ),
+  CommandDefinition(
+    command: 'armmotion',
+    name: 'Arm Motion',
+    description: 'Enable motion detection',
+    icon: '🚨',
+    defaultArgs: {'enabled': true},
   ),
 ];
