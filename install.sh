@@ -125,20 +125,7 @@ else
     echo -e "${GREEN}✓ Using Login Monitor PRO cloud${NC}"
 fi
 
-echo -e "${BLUE}[5/7]${NC} User Registration..."
-echo ""
-read -p "Enter your email address: " USER_EMAIL < /dev/tty
-
-if [[ -z "$USER_EMAIL" ]]; then
-    echo -e "${RED}Error: Email is required for pairing code delivery!${NC}"
-    exit 1
-fi
-
-# Validate email format
-if [[ ! "$USER_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-    echo -e "${RED}Error: Invalid email format!${NC}"
-    exit 1
-fi
+echo -e "${BLUE}[5/7]${NC} Generating pairing code..."
 
 # Generate device ID
 DEVICE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
@@ -150,11 +137,8 @@ PAIRING_CODE=$(printf "%06d" $((RANDOM % 1000000)))
 PAIRING_EXPIRY=$(($(date +%s) + 300))
 PAIRING_EXPIRY_ISO=$(date -u -r $PAIRING_EXPIRY +"%Y-%m-%dT%H:%M:%SZ")
 
-echo ""
-echo "Registering device and sending pairing code..."
-
-# Register device in Supabase and send email
-REGISTER_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
+# Register device in Supabase
+curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
     -H "apikey: ${SUPABASE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_KEY}" \
     -H "Content-Type: application/json" \
@@ -165,28 +149,8 @@ REGISTER_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
         \"os_version\": \"macOS ${OS_VERSION}\",
         \"pairing_code\": \"${PAIRING_CODE}\",
         \"pairing_expires_at\": \"${PAIRING_EXPIRY_ISO}\",
-        \"user_email\": \"${USER_EMAIL}\",
         \"is_active\": true
-    }" 2>/dev/null)
-
-# Send pairing code via Supabase Edge Function
-EMAIL_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/functions/v1/send-pairing-email" \
-    -H "apikey: ${SUPABASE_KEY}" \
-    -H "Authorization: Bearer ${SUPABASE_KEY}" \
-    -H "Content-Type: application/json" \
-    -d "{
-        \"email\": \"${USER_EMAIL}\",
-        \"pairing_code\": \"${PAIRING_CODE}\",
-        \"hostname\": \"${HOSTNAME}\",
-        \"device_id\": \"${DEVICE_ID}\"
-    }" 2>/dev/null)
-
-# Check if email was sent successfully
-if echo "$EMAIL_RESPONSE" | grep -q '"success":true'; then
-    EMAIL_SENT=true
-else
-    EMAIL_SENT=false
-fi
+    }" >/dev/null 2>&1 || true
 
 # Create config
 cat > "$INSTALL_DIR/config.json" << EOF
@@ -195,9 +159,6 @@ cat > "$INSTALL_DIR/config.json" << EOF
     "url": "$SUPABASE_URL",
     "anon_key": "$SUPABASE_KEY",
     "device_id": "$DEVICE_ID"
-  },
-  "user": {
-    "email": "$USER_EMAIL"
   },
   "pairing": {
     "code": "$PAIRING_CODE",
@@ -217,31 +178,16 @@ chmod 600 "$INSTALL_DIR/config.json"
 
 echo -e "${GREEN}✓ Configuration saved${NC}"
 echo "  Device ID: $DEVICE_ID"
-echo "  Email: $USER_EMAIL"
 
 echo ""
-if [[ "$EMAIL_SENT" == "true" ]]; then
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                                                            ║${NC}"
-    echo -e "${GREEN}║   ${CYAN}PAIRING CODE SENT TO YOUR EMAIL!${GREEN}                        ║${NC}"
-    echo -e "${GREEN}║                                                            ║${NC}"
-    echo -e "${GREEN}║   Check: ${YELLOW}${USER_EMAIL}${GREEN}                        "
-    echo -e "${GREEN}║                                                            ║${NC}"
-    echo -e "${GREEN}║   Code valid for: 5 minutes                                ║${NC}"
-    echo -e "${GREEN}║   Enter the code in the Flutter app to connect             ║${NC}"
-    echo -e "${GREEN}║                                                            ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
-else
-    echo -e "${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║                                                            ║${NC}"
-    echo -e "${YELLOW}║   ${CYAN}PAIRING CODE:  ${GREEN}$PAIRING_CODE${YELLOW}                              ║${NC}"
-    echo -e "${YELLOW}║                                                            ║${NC}"
-    echo -e "${YELLOW}║   (Email delivery failed - use code above)                 ║${NC}"
-    echo -e "${YELLOW}║   Valid for: 5 minutes                                     ║${NC}"
-    echo -e "${YELLOW}║   Enter this code in the Flutter app to connect            ║${NC}"
-    echo -e "${YELLOW}║                                                            ║${NC}"
-    echo -e "${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
-fi
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}║   ${CYAN}YOUR PAIRING CODE:${NC}  ${YELLOW}$PAIRING_CODE${GREEN}                           ║${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}║   Valid for: 5 minutes                                     ║${NC}"
+echo -e "${GREEN}║   Enter this code in the Flutter app to connect            ║${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 echo -e "${BLUE}[6/7]${NC} Setting up services..."
@@ -369,7 +315,7 @@ case "$1" in
         tail -f /tmp/loginmonitor-screen.log /tmp/loginmonitor-commands.log 2>/dev/null
         ;;
     pair)
-        # Generate new 6-digit pairing code and send via email
+        # Generate new 6-digit pairing code
         CODE=$(printf "%06d" $((RANDOM % 1000000)))
         EXPIRY=$(($(date +%s) + 300))
         EXPIRY_ISO=$(date -u -r $EXPIRY +"%Y-%m-%dT%H:%M:%SZ")
@@ -394,7 +340,6 @@ with open(config_path, 'w') as f:
 supabase_url = config['supabase']['url']
 supabase_key = config['supabase']['anon_key']
 device_id = config['supabase']['device_id']
-user_email = config.get('user', {}).get('email', '')
 
 # Update device in Supabase
 try:
@@ -415,50 +360,15 @@ try:
 except Exception as e:
     pass
 
-# Send email via Edge Function
-email_sent = False
-if user_email:
-    try:
-        email_data = json.dumps({
-            'email': user_email,
-            'pairing_code': '$CODE',
-            'hostname': os.uname().nodename,
-            'device_id': device_id
-        }).encode('utf-8')
-
-        req = urllib.request.Request(
-            f"{supabase_url}/functions/v1/send-pairing-email",
-            data=email_data,
-            method='POST'
-        )
-        req.add_header('apikey', supabase_key)
-        req.add_header('Authorization', f'Bearer {supabase_key}')
-        req.add_header('Content-Type', 'application/json')
-        response = urllib.request.urlopen(req)
-        result = json.loads(response.read().decode('utf-8'))
-        email_sent = result.get('success', False)
-    except Exception as e:
-        pass
-
 print("")
-if email_sent:
-    print("\033[0;32m╔════════════════════════════════════════════════════╗\033[0m")
-    print("\033[0;32m║                                                    ║\033[0m")
-    print("\033[0;32m║   PAIRING CODE SENT TO YOUR EMAIL!                 ║\033[0m")
-    print(f"\033[0;32m║   Check: {user_email[:40]:<40} ║\033[0m")
-    print("\033[0;32m║                                                    ║\033[0m")
-    print("\033[0;32m║   Valid for: 5 minutes                             ║\033[0m")
-    print("\033[0;32m║                                                    ║\033[0m")
-    print("\033[0;32m╚════════════════════════════════════════════════════╝\033[0m")
-else:
-    print("╔════════════════════════════════════════════════════╗")
-    print("║                                                    ║")
-    print("║   PAIRING CODE:  $CODE                         ║")
-    print("║                                                    ║")
-    print("║   Valid for: 5 minutes                             ║")
-    print("║   Enter this code in the Flutter app               ║")
-    print("║                                                    ║")
-    print("╚════════════════════════════════════════════════════╝")
+print("\033[0;32m╔════════════════════════════════════════════════════╗\033[0m")
+print("\033[0;32m║                                                    ║\033[0m")
+print("\033[0;32m║   YOUR PAIRING CODE:  $CODE                    ║\033[0m")
+print("\033[0;32m║                                                    ║\033[0m")
+print("\033[0;32m║   Valid for: 5 minutes                             ║\033[0m")
+print("\033[0;32m║   Enter this code in the Flutter app               ║\033[0m")
+print("\033[0;32m║                                                    ║\033[0m")
+print("\033[0;32m╚════════════════════════════════════════════════════╝\033[0m")
 print("")
 PEOF
         ;;
@@ -483,7 +393,7 @@ PEOF
         echo "  restart    Restart services"
         echo "  status     Show service status"
         echo "  logs       View live logs"
-        echo "  pair       Generate new 6-digit pairing code (sent to email)"
+        echo "  pair       Generate new 6-digit pairing code"
         echo "  test       Trigger test event"
         echo "  uninstall  Remove Login Monitor"
         echo "  version    Show version"
@@ -510,13 +420,13 @@ echo -e "${GREEN}║           INSTALLATION COMPLETE!                           
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}Quick Start:${NC}"
-echo "  1. Check your email for the 6-digit pairing code"
-echo "  2. Open the Flutter app on your phone"
-echo "  3. Enter the pairing code to connect"
+echo "  1. Open the Flutter app on your phone"
+echo "  2. Enter the pairing code shown above"
+echo "  3. Your Mac is now connected!"
 echo ""
 echo -e "${CYAN}CLI Commands:${NC}"
 echo "  loginmonitor status   - Check if running"
-echo "  loginmonitor pair     - Generate new pairing code (sent to email)"
+echo "  loginmonitor pair     - Generate new pairing code"
 echo "  loginmonitor logs     - View logs"
 echo "  loginmonitor stop     - Stop monitoring"
 echo ""
