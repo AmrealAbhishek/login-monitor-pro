@@ -99,13 +99,13 @@ echo ""
 echo "  1) ${GREEN}Default${NC} - Use Login Monitor PRO cloud (Recommended)"
 echo "  2) ${YELLOW}Custom${NC}  - Use your own Supabase project"
 echo ""
-read -p "Enter choice [1/2]: " SETUP_CHOICE
+read -p "Enter choice [1/2]: " SETUP_CHOICE < /dev/tty
 
 if [[ "$SETUP_CHOICE" == "2" ]]; then
     echo ""
     echo -e "${YELLOW}Enter your Supabase credentials:${NC}"
-    read -p "Supabase Project URL (https://xxx.supabase.co): " SUPABASE_URL
-    read -p "Supabase Anon Key: " SUPABASE_KEY
+    read -p "Supabase Project URL (https://xxx.supabase.co): " SUPABASE_URL < /dev/tty
+    read -p "Supabase Anon Key: " SUPABASE_KEY < /dev/tty
 
     if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" ]]; then
         echo -e "${RED}Error: Supabase URL and Key are required!${NC}"
@@ -120,7 +120,7 @@ fi
 
 echo -e "${BLUE}[5/7]${NC} User Registration..."
 echo ""
-read -p "Enter your email address: " USER_EMAIL
+read -p "Enter your email address: " USER_EMAIL < /dev/tty
 
 if [[ -z "$USER_EMAIL" ]]; then
     echo -e "${RED}Error: Email is required for pairing code delivery!${NC}"
