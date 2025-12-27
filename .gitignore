@@ -1,0 +1,55 @@
+# Build artifacts
+build/
+dist/
+*.apk
+*.dmg
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+*.log
+
+# Sensitive data - DO NOT COMMIT
+config.json
+*.env
+.env*
+
+# Captured data
+captured_images/
+captured_audio/
+activity_screenshots/
+activity_logs/
+events/
+known_faces/
+*.jpg
+*.jpeg
+*.png
+*.mp3
+*.wav
+*.m4a
+
+# Flutter
+login_monitor_app/.dart_tool/
+login_monitor_app/.flutter-plugins
+login_monitor_app/.flutter-plugins-dependencies
+login_monitor_app/.packages
+login_monitor_app/build/
+login_monitor_app/android/.gradle/
+login_monitor_app/android/app/build/
+login_monitor_app/android/local.properties
+login_monitor_app/ios/Pods/
+login_monitor_app/ios/.symlinks/
+login_monitor_app/pubspec.lock
+
+# Logs
+monitor.log
+telegram_bot.log

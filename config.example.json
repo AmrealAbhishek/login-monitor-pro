@@ -1,0 +1,19 @@
+{
+  "supabase": {
+    "url": "https://your-project.supabase.co",
+    "anon_key": "your-anon-key-here",
+    "device_id": "will-be-generated-on-install"
+  },
+  "user": {
+    "email": "your@email.com"
+  },
+  "features": {
+    "multi_photo": true,
+    "photo_count": 3,
+    "photo_delay": 2,
+    "audio_recording": true,
+    "audio_duration": 10,
+    "face_recognition": false
+  },
+  "cooldown_seconds": 10
+}

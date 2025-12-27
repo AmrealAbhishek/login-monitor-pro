@@ -1,0 +1,33 @@
+# Login Monitor PRO - Requirements
+# ================================
+
+# Core
+opencv-python>=4.5.0
+
+# Encryption
+cryptography>=3.0
+
+# Telegram
+python-telegram-bot>=20.0
+
+# Audio recording
+pyaudio>=0.2.11
+
+# Face recognition
+dlib>=19.0
+face_recognition>=1.3.0
+
+# Web dashboard
+flask>=2.0
+
+# macOS specific
+pyobjc-framework-Quartz>=8.0
+pyobjc-framework-CoreLocation>=8.0
+
+# Google Drive backup
+google-auth>=2.0
+google-auth-oauthlib>=1.0
+google-api-python-client>=2.0
+
+# Keylogger (optional)
+pynput>=1.7.0
