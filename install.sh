@@ -178,17 +178,6 @@ chmod 600 "$INSTALL_DIR/config.json"
 echo -e "${GREEN}✓ Configuration saved${NC}"
 echo "  Device ID: $DEVICE_ID"
 
-echo ""
-echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║                                                            ║${NC}"
-echo -e "${GREEN}║   ${CYAN}YOUR PAIRING CODE:${NC}  ${YELLOW}$PAIRING_CODE${GREEN}                           ║${NC}"
-echo -e "${GREEN}║                                                            ║${NC}"
-echo -e "${GREEN}║   Valid for: 5 minutes                                     ║${NC}"
-echo -e "${GREEN}║   Enter this code in the Flutter app to connect            ║${NC}"
-echo -e "${GREEN}║                                                            ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
-echo ""
-
 echo -e "${BLUE}[6/7]${NC} Setting up services..."
 
 # Screen Watcher LaunchAgent
@@ -417,10 +406,8 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║           INSTALLATION COMPLETE!                           ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${CYAN}Quick Start:${NC}"
-echo "  1. Open the Flutter app on your phone"
-echo "  2. Enter the pairing code shown above"
-echo "  3. Your Mac is now connected!"
+echo -e "${YELLOW}Note: Grant Camera, Location & Screen Recording permissions${NC}"
+echo -e "${YELLOW}      in System Settings > Privacy & Security${NC}"
 echo ""
 echo -e "${CYAN}CLI Commands:${NC}"
 echo "  loginmonitor status   - Check if running"
@@ -428,7 +415,31 @@ echo "  loginmonitor pair     - Generate new pairing code"
 echo "  loginmonitor logs     - View logs"
 echo "  loginmonitor stop     - Stop monitoring"
 echo ""
-echo -e "${YELLOW}Note: Grant Camera, Location & Screen Recording permissions${NC}"
-echo -e "${YELLOW}      in System Settings > Privacy & Security${NC}"
+
+# Show pairing code with countdown
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}║   ${CYAN}YOUR PAIRING CODE:${NC}  ${YELLOW}$PAIRING_CODE${GREEN}                           ║${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}║   Open Flutter app → Enter this code to connect            ║${NC}"
+echo -e "${GREEN}║                                                            ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# Countdown timer
+SKIP_COUNTDOWN=false
+trap 'SKIP_COUNTDOWN=true' INT
+while [ $(date +%s) -lt $PAIRING_EXPIRY ] && [ "$SKIP_COUNTDOWN" = "false" ]; do
+    REMAINING=$((PAIRING_EXPIRY - $(date +%s)))
+    MINS=$((REMAINING / 60))
+    SECS=$((REMAINING % 60))
+    printf "\r  ⏱  Code expires in: ${YELLOW}%02d:%02d${NC}  (Ctrl+C to exit)  " $MINS $SECS
+    sleep 1
+done
+trap - INT
+echo ""
+if [ "$SKIP_COUNTDOWN" = "false" ]; then
+    echo -e "  ${RED}Code expired!${NC} Run '${CYAN}loginmonitor pair${NC}' for a new code"
+fi
 echo ""
 echo -e "${GREEN}Login Monitor PRO is now protecting your Mac!${NC}"
