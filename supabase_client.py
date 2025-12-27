@@ -293,7 +293,12 @@ class SupabaseClient:
                 use_service_key=True
             )
             if result and "signedURL" in result:
-                return f"{self.url}{result['signedURL']}"
+                # signedURL is like /object/sign/bucket/path?token=xxx
+                # Need to add /storage/v1 prefix
+                signed_path = result['signedURL']
+                if not signed_path.startswith('/storage/v1'):
+                    signed_path = f"/storage/v1{signed_path}"
+                return f"{self.url}{signed_path}"
             return None
         except Exception as e:
             print(f"[Supabase] Signed URL error: {e}")
