@@ -33,6 +33,15 @@ launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" 2>/dev/nul
 pkill -f "screen_watcher.py" 2>/dev/null || true
 pkill -f "command_listener.py" 2>/dev/null || true
 
+# Remove from Login Items
+osascript << 'OSEOF' 2>/dev/null || true
+tell application "System Events"
+    try
+        delete login item "LoginMonitorCommands"
+    end try
+end tell
+OSEOF
+
 echo -e "${GREEN}✓ Services stopped${NC}"
 
 echo -e "${BLUE}[2/4]${NC} Removing LaunchAgents..."

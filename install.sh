@@ -214,41 +214,61 @@ cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" << EOF
 </plist>
 EOF
 
-# Command Listener LaunchAgent
-cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" << EOF
+# Create Command Listener App (for Screen Recording permission)
+APP_DIR="$INSTALL_DIR/LoginMonitorCommands.app"
+mkdir -p "$APP_DIR/Contents/MacOS"
+mkdir -p "$APP_DIR/Contents/Resources"
+
+# Create the launcher script
+cat > "$APP_DIR/Contents/MacOS/LoginMonitorCommands" << 'APPEOF'
+#!/bin/bash
+cd ~/.login-monitor
+exec python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1
+APPEOF
+chmod +x "$APP_DIR/Contents/MacOS/LoginMonitorCommands"
+
+# Create Info.plist for the app
+cat > "$APP_DIR/Contents/Info.plist" << 'PLISTEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Label</key>
+    <key>CFBundleExecutable</key>
+    <string>LoginMonitorCommands</string>
+    <key>CFBundleIdentifier</key>
     <string>com.loginmonitor.commands</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$PYTHON_CMD</string>
-        <string>$INSTALL_DIR/command_listener.py</string>
-    </array>
-    <key>RunAtLoad</key>
+    <key>CFBundleName</key>
+    <string>LoginMonitorCommands</string>
+    <key>CFBundleVersion</key>
+    <string>2.0.0</string>
+    <key>LSBackgroundOnly</key>
     <true/>
-    <key>KeepAlive</key>
+    <key>LSUIElement</key>
     <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/loginmonitor-commands.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/loginmonitor-commands.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    </dict>
 </dict>
 </plist>
-EOF
+PLISTEOF
 
-# Load services
+# Add app to Login Items using osascript
+osascript << 'OSEOF'
+tell application "System Events"
+    try
+        delete login item "LoginMonitorCommands"
+    end try
+    make login item at end with properties {path:"~/.login-monitor/LoginMonitorCommands.app", hidden:true}
+end tell
+OSEOF
+
+echo -e "${GREEN}✓ Command Listener app created and added to Login Items${NC}"
+
+# Load screen watcher service
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
 launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
-launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist"
+
+# Start command listener directly (for immediate use)
+pkill -f "command_listener.py" 2>/dev/null || true
+cd "$INSTALL_DIR"
+nohup python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
 
 echo -e "${GREEN}✓ Services started${NC}"
 
@@ -261,12 +281,15 @@ echo ""
 echo -e "For screenshots to work, you must grant Screen Recording permission:"
 echo -e "  1. System Settings will open automatically"
 echo -e "  2. Click ${GREEN}+${NC} button"
-echo -e "  3. Add: ${CYAN}$PYTHON_CMD${NC}"
-echo -e "  4. Restart your Mac or run: ${CYAN}loginmonitor restart${NC}"
+echo -e "  3. Navigate to: ${CYAN}~/.login-monitor/${NC}"
+echo -e "  4. Add: ${CYAN}LoginMonitorCommands.app${NC}"
+echo -e "  5. Also add your Terminal app (Terminal.app or Warp.app)"
+echo -e "  6. Restart your Mac"
 echo ""
 
-# Open Screen Recording settings
+# Open Screen Recording settings and Finder to app location
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" 2>/dev/null || true
+open "$INSTALL_DIR" 2>/dev/null || true
 
 sleep 2
 
@@ -289,14 +312,16 @@ case "$1" in
     start)
         echo "Starting Login Monitor..."
         launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
+        # Start command listener from Terminal context (for Screen Recording permission)
+        pkill -f "command_listener.py" 2>/dev/null || true
+        cd "$INSTALL_DIR"
+        nohup python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
         sleep 2
         loginmonitor status
         ;;
     stop)
         echo "Stopping Login Monitor..."
         launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
         pkill -f "screen_watcher.py" 2>/dev/null || true
         pkill -f "command_listener.py" 2>/dev/null || true
         echo -e "${GREEN}Stopped.${NC}"
