@@ -224,7 +224,7 @@ echo "  Device ID: $DEVICE_ID"
 
 echo -e "${BLUE}[6/7]${NC} Setting up services..."
 
-# Screen Watcher LaunchAgent
+# Screen Watcher LaunchAgent (detects login/unlock events)
 cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -245,6 +245,38 @@ cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" << EOF
     <string>/tmp/loginmonitor-screen.log</string>
     <key>StandardErrorPath</key>
     <string>/tmp/loginmonitor-screen.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+# Command Listener LaunchAgent (processes remote commands)
+cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.loginmonitor.commands</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$PYTHON_CMD</string>
+        <string>$INSTALL_DIR/command_listener.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/loginmonitor-commands.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/loginmonitor-commands.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -307,16 +339,13 @@ else
     echo -e "${YELLOW}Note: Could not add to Login Items automatically (optional)${NC}"
 fi
 
-# Load screen watcher service
+# Load LaunchAgents (both services will auto-start on login)
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
 launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
+launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist"
 
-# Start command listener directly (for immediate use)
-pkill -f "command_listener.py" 2>/dev/null || true
-cd "$INSTALL_DIR"
-nohup python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
-
-echo -e "${GREEN}✓ Services started${NC}"
+echo -e "${GREEN}✓ Services started (will auto-start on login)${NC}"
 
 # Screen Recording permission note
 echo ""
@@ -344,16 +373,14 @@ case "$1" in
     start)
         echo "Starting Login Monitor..."
         launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        # Start command listener from Terminal context (for Screen Recording permission)
-        pkill -f "command_listener.py" 2>/dev/null || true
-        cd "$INSTALL_DIR"
-        nohup python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
+        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
         sleep 2
         loginmonitor status
         ;;
     stop)
         echo "Stopping Login Monitor..."
         launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
+        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
         pkill -f "screen_watcher.py" 2>/dev/null || true
         pkill -f "command_listener.py" 2>/dev/null || true
         echo -e "${GREEN}Stopped.${NC}"
