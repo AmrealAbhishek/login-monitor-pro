@@ -74,32 +74,36 @@ fi
 echo -e "${GREEN}✓ imagesnap${NC}"
 
 # Python path
-# Find the best Python to use - prefer one that's commonly used and supports pyobjc
-# Priority: python.org Python > Homebrew Python > System Python
+# Find the best Python to use - prefer SYSTEM Python for consistency
+# System Python is more likely to already have permissions granted
+# Priority: System Python > python.org Python > Homebrew Python
 PYTHON_CMD=""
 
-# First, try to find python.org Python (most reliable for pyobjc)
-for PY in /Library/Frameworks/Python.framework/Versions/3.*/bin/python3; do
-    if [ -x "$PY" ]; then
-        PYTHON_CMD="$PY"
-        break
-    fi
-done
+# First, try system Python (most likely to have existing permissions)
+if [ -f "/usr/bin/python3" ]; then
+    PYTHON_CMD="/usr/bin/python3"
+elif [ -f "/Library/Developer/CommandLineTools/usr/bin/python3" ]; then
+    PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
+fi
+
+# Fallback to python.org Python
+if [ -z "$PYTHON_CMD" ]; then
+    for PY in /Library/Frameworks/Python.framework/Versions/3.*/bin/python3; do
+        if [ -x "$PY" ]; then
+            PYTHON_CMD="$PY"
+            break
+        fi
+    done
+fi
 
 # Fallback to Homebrew Python
 if [ -z "$PYTHON_CMD" ] && [ -x "/opt/homebrew/bin/python3" ]; then
     PYTHON_CMD="/opt/homebrew/bin/python3"
 fi
 
-# Fallback to system Python
+# Last resort
 if [ -z "$PYTHON_CMD" ]; then
-    if [ -f "/Library/Developer/CommandLineTools/usr/bin/python3" ]; then
-        PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
-    elif [ -f "/usr/bin/python3" ]; then
-        PYTHON_CMD="/usr/bin/python3"
-    else
-        PYTHON_CMD=$(which python3)
-    fi
+    PYTHON_CMD=$(which python3)
 fi
 
 echo -e "${CYAN}Using Python: $PYTHON_CMD${NC}"
@@ -510,23 +514,26 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║           INSTALLATION COMPLETE!                           ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${YELLOW}IMPORTANT: Setup permissions for full functionality:${NC}"
+echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║  REQUIRED: Run these commands NOW for full functionality   ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${CYAN}1. Screen Recording (for screenshots):${NC}"
-echo -e "   Run: ${GREEN}loginmonitor screen${NC}"
-echo -e "   This will guide you to grant permission to your Terminal app."
+echo -e "${YELLOW}1. GPS Location (REQUIRED for tracking):${NC}"
+echo -e "   ${GREEN}loginmonitor location${NC}"
+echo -e "   → Click 'Allow' when the popup appears"
 echo ""
-echo -e "${CYAN}2. Location Services (for GPS tracking):${NC}"
-echo -e "   Run: ${GREEN}loginmonitor location${NC}"
+echo -e "${YELLOW}2. Screenshots (REQUIRED for screen capture):${NC}"
+echo -e "   ${GREEN}loginmonitor screen${NC}"
+echo -e "   → Add Terminal to Screen Recording in System Settings"
 echo ""
-echo -e "${CYAN}3. Camera (for intruder photos):${NC}"
-echo -e "   Grant permission when prompted by macOS."
+echo -e "${YELLOW}3. Camera:${NC}"
+echo -e "   → Permission is requested automatically when needed"
 echo ""
-echo -e "${CYAN}CLI Commands:${NC}"
+echo -e "${CYAN}Other CLI Commands:${NC}"
 echo "  loginmonitor status   - Check if running"
 echo "  loginmonitor pair     - Generate new pairing code"
 echo "  loginmonitor logs     - View logs"
-echo "  loginmonitor stop     - Stop monitoring"
+echo "  loginmonitor test     - Send test event"
 echo ""
 
 # Show pairing code with countdown
