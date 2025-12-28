@@ -62,6 +62,9 @@ dependencies:
   # Timezone
   timezone: ^0.9.2
 
+  # Fonts
+  google_fonts: ^6.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

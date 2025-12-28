@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
+import 'package:google_fonts/google_fonts.dart';
 import '../services/supabase_service.dart';
 import '../theme/cyber_theme.dart';
 
@@ -21,7 +21,6 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _textFadeAnimation;
   late Animation<Offset> _textSlideAnimation;
   late Animation<double> _pulseAnimation;
-  late Animation<double> _rotationAnimation;
 
   @override
   void initState() {
@@ -39,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
     );
 
-    // Pulse animation for the eye glow
+    // Pulse animation for the logo glow
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
@@ -50,12 +49,8 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _logoController, curve: Curves.easeOut),
     );
 
-    _logoScaleAnimation = Tween<double>(begin: 0.3, end: 1).animate(
+    _logoScaleAnimation = Tween<double>(begin: 0.5, end: 1).animate(
       CurvedAnimation(parent: _logoController, curve: Curves.elasticOut),
-    );
-
-    _rotationAnimation = Tween<double>(begin: -0.5, end: 0).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeOutBack),
     );
 
     // Text animations
@@ -69,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen>
     ).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOut));
 
     // Pulse animation
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
@@ -116,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen>
             center: Alignment.center,
             radius: 1.5,
             colors: [
-              CyberColors.primaryRed.withOpacity(0.15),
+              CyberColors.primaryRed.withOpacity(0.1),
               CyberColors.pureBlack,
             ],
           ),
@@ -138,10 +133,7 @@ class _SplashScreenState extends State<SplashScreen>
                             opacity: _logoFadeAnimation.value,
                             child: Transform.scale(
                               scale: _logoScaleAnimation.value,
-                              child: Transform.rotate(
-                                angle: _rotationAnimation.value,
-                                child: child,
-                              ),
+                              child: child,
                             ),
                           );
                         },
@@ -149,55 +141,54 @@ class _SplashScreenState extends State<SplashScreen>
                           animation: _pulseController,
                           builder: (context, child) {
                             return Container(
-                              width: 160,
-                              height: 160,
+                              width: 180,
+                              height: 140,
                               decoration: BoxDecoration(
                                 boxShadow: [
                                   BoxShadow(
-                                    color: CyberColors.primaryRed.withOpacity(0.4 * _pulseAnimation.value),
-                                    blurRadius: 40 * _pulseAnimation.value,
+                                    color: CyberColors.primaryRed.withOpacity(0.3 * _pulseAnimation.value),
+                                    blurRadius: 30 * _pulseAnimation.value,
                                     spreadRadius: 5,
                                   ),
                                 ],
                               ),
-                              child: CustomPaint(
-                                painter: CyVigilLogoPainter(
-                                  glowIntensity: _pulseAnimation.value,
-                                ),
+                              child: Image.asset(
+                                'assets/images/cyvigil.png',
+                                fit: BoxFit.contain,
                               ),
                             );
                           },
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 30),
 
-                      // CYVIGIL Text
+                      // CYVIGIL Text with Tektur font
                       SlideTransition(
                         position: _textSlideAnimation,
                         child: FadeTransition(
                           opacity: _textFadeAnimation,
                           child: Column(
                             children: [
-                              // Main title
-                              const Text(
+                              // Main title - CYVIGIL with Tektur font
+                              Text(
                                 'CYVIGIL',
-                                style: TextStyle(
-                                  fontSize: 42,
-                                  fontWeight: FontWeight.w900,
+                                style: GoogleFonts.tektur(
+                                  fontSize: 44,
+                                  fontWeight: FontWeight.w700,
                                   color: CyberColors.pureWhite,
-                                  letterSpacing: 8,
+                                  letterSpacing: 6,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               // Tagline
                               Text(
                                 'SECURING DIGITAL FUTURE',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                style: GoogleFonts.tektur(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
                                   color: CyberColors.primaryRed,
-                                  letterSpacing: 4,
+                                  letterSpacing: 3,
                                 ),
                               ),
                             ],
@@ -245,17 +236,19 @@ class _SplashScreenState extends State<SplashScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 16,
+                          // Mini logo
+                          SizedBox(
+                            width: 20,
                             height: 16,
-                            child: CustomPaint(
-                              painter: CyVigilLogoPainter(glowIntensity: 0.5, mini: true),
+                            child: Image.asset(
+                              'assets/images/cyvigil.png',
+                              fit: BoxFit.contain,
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Text(
+                          Text(
                             'CyVigilant',
-                            style: TextStyle(
+                            style: GoogleFonts.tektur(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: CyberColors.pureWhite,
@@ -273,171 +266,5 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       ),
     );
-  }
-}
-
-/// Custom painter for the CyVigil eye logo
-class CyVigilLogoPainter extends CustomPainter {
-  final double glowIntensity;
-  final bool mini;
-
-  CyVigilLogoPainter({this.glowIntensity = 1.0, this.mini = false});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-
-    // Colors
-    const darkRed = Color(0xFF8B0000);
-    const brightRed = Color(0xFFCC0000);
-    const eyeRed = Color(0xFFAA0000);
-
-    // Draw outer eye shape (rounded diamond)
-    final eyePath = Path();
-    final eyeWidth = radius * 0.95;
-    final eyeHeight = radius * 0.7;
-
-    // Create eye shape using bezier curves
-    eyePath.moveTo(center.dx - eyeWidth, center.dy);
-    eyePath.quadraticBezierTo(
-      center.dx - eyeWidth * 0.5, center.dy - eyeHeight,
-      center.dx, center.dy - eyeHeight * 0.8,
-    );
-    eyePath.quadraticBezierTo(
-      center.dx + eyeWidth * 0.5, center.dy - eyeHeight,
-      center.dx + eyeWidth, center.dy,
-    );
-    eyePath.quadraticBezierTo(
-      center.dx + eyeWidth * 0.5, center.dy + eyeHeight,
-      center.dx, center.dy + eyeHeight * 0.8,
-    );
-    eyePath.quadraticBezierTo(
-      center.dx - eyeWidth * 0.5, center.dy + eyeHeight,
-      center.dx - eyeWidth, center.dy,
-    );
-    eyePath.close();
-
-    // Draw eye background with gradient
-    final eyeGradient = RadialGradient(
-      center: Alignment.center,
-      radius: 1.0,
-      colors: [
-        darkRed.withOpacity(0.9),
-        eyeRed,
-        darkRed,
-      ],
-    );
-
-    final eyePaint = Paint()
-      ..shader = eyeGradient.createShader(
-        Rect.fromCircle(center: center, radius: radius),
-      );
-
-    canvas.drawPath(eyePath, eyePaint);
-
-    // Draw eye border
-    final borderPaint = Paint()
-      ..color = Colors.grey.shade600
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = mini ? 1 : 3;
-    canvas.drawPath(eyePath, borderPaint);
-
-    // Draw iris (main red circle)
-    final irisRadius = radius * 0.55;
-    final irisGradient = RadialGradient(
-      center: const Alignment(-0.3, -0.3),
-      radius: 1.2,
-      colors: [
-        brightRed,
-        darkRed,
-        const Color(0xFF500000),
-      ],
-    );
-
-    final irisPaint = Paint()
-      ..shader = irisGradient.createShader(
-        Rect.fromCircle(center: center, radius: irisRadius),
-      );
-    canvas.drawCircle(center, irisRadius, irisPaint);
-
-    // Draw spiral/swirl pattern
-    if (!mini) {
-      _drawSpiral(canvas, center, irisRadius * 0.9, darkRed);
-    }
-
-    // Draw pupil (center white dot)
-    final pupilPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(center, radius * 0.12, pupilPaint);
-
-    // Draw small accent circles (like in the logo)
-    if (!mini) {
-      final accentPaint = Paint()..color = Colors.grey.shade400;
-      canvas.drawCircle(
-        Offset(center.dx + irisRadius * 0.5, center.dy - irisRadius * 0.3),
-        radius * 0.06,
-        accentPaint,
-      );
-      canvas.drawCircle(
-        Offset(center.dx - irisRadius * 0.3, center.dy + irisRadius * 0.5),
-        radius * 0.04,
-        accentPaint,
-      );
-    }
-
-    // Draw glow effect
-    if (glowIntensity > 0) {
-      final glowPaint = Paint()
-        ..color = CyberColors.primaryRed.withOpacity(0.1 * glowIntensity)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 20);
-      canvas.drawCircle(center, radius * 0.7, glowPaint);
-    }
-  }
-
-  void _drawSpiral(Canvas canvas, Offset center, double radius, Color color) {
-    final spiralPaint = Paint()
-      ..color = color.withOpacity(0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    const turns = 2.5;
-    const startRadius = 0.2;
-
-    for (double t = 0; t < turns * 2 * math.pi; t += 0.1) {
-      final r = radius * (startRadius + (1 - startRadius) * t / (turns * 2 * math.pi));
-      final x = center.dx + r * math.cos(t - math.pi / 2);
-      final y = center.dy + r * math.sin(t - math.pi / 2);
-
-      if (t == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    canvas.drawPath(path, spiralPaint);
-
-    // Draw second spiral (offset)
-    final path2 = Path();
-    for (double t = 0; t < turns * 2 * math.pi; t += 0.1) {
-      final r = radius * (startRadius + (1 - startRadius) * t / (turns * 2 * math.pi));
-      final x = center.dx + r * math.cos(t + math.pi / 2);
-      final y = center.dy + r * math.sin(t + math.pi / 2);
-
-      if (t == 0) {
-        path2.moveTo(x, y);
-      } else {
-        path2.lineTo(x, y);
-      }
-    }
-
-    canvas.drawPath(path2, spiralPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CyVigilLogoPainter oldDelegate) {
-    return oldDelegate.glowIntensity != glowIntensity;
   }
 }
