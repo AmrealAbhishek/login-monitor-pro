@@ -74,12 +74,28 @@ fi
 echo -e "${GREEN}✓ imagesnap${NC}"
 
 # Python path
-PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
-[[ ! -f "$PYTHON_CMD" ]] && PYTHON_CMD=$(which python3)
+# Find the best Python to use (prefer system Python for better permission handling)
+if [ -f "/Library/Developer/CommandLineTools/usr/bin/python3" ]; then
+    PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
+elif [ -f "/usr/bin/python3" ]; then
+    PYTHON_CMD="/usr/bin/python3"
+else
+    PYTHON_CMD=$(which python3)
+fi
+echo -e "${CYAN}Using Python: $PYTHON_CMD${NC}"
 
 # Install Python packages
 echo "Installing Python packages..."
+# Install for the primary Python
 $PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa 2>/dev/null || true
+
+# Also install for any other Python versions found (Homebrew, etc.)
+for PY in /Library/Frameworks/Python.framework/Versions/*/bin/python3 /usr/local/bin/python3 /opt/homebrew/bin/python3; do
+    if [ -x "$PY" ] && [ "$PY" != "$PYTHON_CMD" ]; then
+        echo -e "${CYAN}Installing packages for $PY...${NC}"
+        $PY -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa 2>/dev/null || true
+    fi
+done
 echo -e "${GREEN}✓ Python packages${NC}"
 
 echo -e "${BLUE}[3/7]${NC} Downloading and installing files..."
@@ -174,7 +190,8 @@ cat > "$INSTALL_DIR/config.json" << EOF
     "face_recognition": false
   },
   "cooldown_seconds": 10,
-  "installed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  "installed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "python_path": "$PYTHON_CMD"
 }
 EOF
 chmod 600 "$INSTALL_DIR/config.json"
@@ -219,11 +236,13 @@ APP_DIR="$INSTALL_DIR/LoginMonitorCommands.app"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
-# Create the launcher script
-cat > "$APP_DIR/Contents/MacOS/LoginMonitorCommands" << 'APPEOF'
+# Create the launcher script (uses Python from config)
+cat > "$APP_DIR/Contents/MacOS/LoginMonitorCommands" << APPEOF
 #!/bin/bash
 cd ~/.login-monitor
-exec python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1
+# Read Python path from config or use default
+PYTHON_PATH=\$(python3 -c "import json; print(json.load(open('config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "$PYTHON_CMD")
+exec "\$PYTHON_PATH" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1
 APPEOF
 chmod +x "$APP_DIR/Contents/MacOS/LoginMonitorCommands"
 
@@ -412,7 +431,10 @@ PEOF
         ;;
     location)
         echo "Setting up location permission..."
-        python3 "$INSTALL_DIR/request_location_permission.py"
+        # Use the same Python as command_listener
+        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
+        echo "Using Python: $PYTHON_PATH"
+        "$PYTHON_PATH" "$INSTALL_DIR/request_location_permission.py"
         ;;
     uninstall)
         bash "$INSTALL_DIR/../login-monitor/uninstall.sh" 2>/dev/null || bash /Users/*/tool/login-monitor/uninstall.sh 2>/dev/null || echo "Run: bash /path/to/uninstall.sh"
