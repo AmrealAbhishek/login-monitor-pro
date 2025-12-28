@@ -287,8 +287,8 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLISTEOF'
 </plist>
 PLISTEOF
 
-# Add app to Login Items using osascript
-osascript << 'OSEOF'
+# Try to add app to Login Items (may fail if Terminal doesn't have Automation permission)
+osascript << 'OSEOF' 2>/dev/null && LOGIN_ITEM_ADDED=true || LOGIN_ITEM_ADDED=false
 tell application "System Events"
     try
         delete login item "LoginMonitorCommands"
@@ -297,7 +297,11 @@ tell application "System Events"
 end tell
 OSEOF
 
-echo -e "${GREEN}✓ Command Listener app created and added to Login Items${NC}"
+if [ "$LOGIN_ITEM_ADDED" = "true" ]; then
+    echo -e "${GREEN}✓ Command Listener app added to Login Items${NC}"
+else
+    echo -e "${YELLOW}Note: Could not add to Login Items automatically (optional)${NC}"
+fi
 
 # Load screen watcher service
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
