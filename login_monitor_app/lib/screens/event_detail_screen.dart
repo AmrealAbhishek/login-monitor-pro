@@ -4,8 +4,11 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:intl/intl.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/event.dart';
 import '../services/supabase_service.dart';
+import '../services/location_service.dart';
+import '../theme/cyber_theme.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final String eventId;
@@ -281,7 +284,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
             ),
             const SizedBox(height: 8),
-            Card(
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [CyberColors.primaryRed.withOpacity(0.1), CyberColors.surfaceColor],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: CyberColors.primaryRed.withOpacity(0.3)),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -289,38 +301,116 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: Colors.red),
-                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: CyberColors.primaryRed.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.location_on, color: CyberColors.primaryRed, size: 24),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            event.location.displayLocation,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Show address from city/region/country if available
+                              if (event.location.displayLocation != 'Unknown location')
+                                Text(
+                                  event.location.displayLocation,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: CyberColors.textPrimary,
+                                  ),
+                                )
+                              // Otherwise use reverse geocoding
+                              else if (event.location.latitude != null)
+                                FutureBuilder<String?>(
+                                  future: LocationService().getAddressFromCoordinates(
+                                    event.location.latitude!,
+                                    event.location.longitude!,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState == ConnectionState.waiting) {
+                                      return const Text(
+                                        'Loading address...',
+                                        style: TextStyle(color: CyberColors.textSecondary),
+                                      );
+                                    }
+                                    return Text(
+                                      snapshot.data ?? 'Location found',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: CyberColors.textPrimary,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              if (event.location.source != null) ...[
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: event.location.source == 'gps'
+                                        ? CyberColors.successGreen.withOpacity(0.1)
+                                        : CyberColors.warningOrange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    event.location.source!.toUpperCase(),
+                                    style: TextStyle(
+                                      color: event.location.source == 'gps'
+                                          ? CyberColors.successGreen
+                                          : CyberColors.warningOrange,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],
                     ),
                     if (event.location.latitude != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Coordinates: ${event.location.latitude!.toStringAsFixed(6)}, ${event.location.longitude!.toStringAsFixed(6)}',
-                        style: TextStyle(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: CyberColors.darkBackground,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.my_location, size: 14, color: CyberColors.textMuted),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${event.location.latitude!.toStringAsFixed(6)}, ${event.location.longitude!.toStringAsFixed(6)}',
+                              style: const TextStyle(
+                                color: CyberColors.textSecondary,
+                                fontSize: 12,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                    if (event.location.source != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Source: ${event.location.source}',
-                        style: TextStyle(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openMaps(event.location.latitude!, event.location.longitude!),
+                          icon: const Icon(Icons.map, size: 18),
+                          label: const Text('Open in Maps'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: CyberColors.primaryRed,
+                            foregroundColor: CyberColors.pureWhite,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
                       ),
                     ],
@@ -497,6 +587,25 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  Future<void> _openMaps(double latitude, double longitude) async {
+    final url = 'https://www.google.com/maps?q=$latitude,$longitude';
+    try {
+      final uri = Uri.parse(url);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open maps')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening maps: $e')),
+        );
+      }
+    }
   }
 
   void _openPhotoGallery(int initialIndex) {

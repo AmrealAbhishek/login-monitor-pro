@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -30,21 +31,27 @@ class AlertService {
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
-    // Create notification channel for alerts
-    const androidChannel = AndroidNotificationChannel(
-      'cyvigil_alerts',
-      'CyVigil Security Alerts',
-      description: 'Alerts for Mac unlock and login events',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-    );
+    // Request notification permission for Android 13+
+    final androidPlugin = _notifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
-    await _notifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChannel);
+    if (androidPlugin != null) {
+      await androidPlugin.requestNotificationsPermission();
+
+      // Create notification channel for alerts
+      const androidChannel = AndroidNotificationChannel(
+        'cyvigil_alerts',
+        'CyVigil Security Alerts',
+        description: 'Alerts for Mac unlock and login events',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
+      await androidPlugin.createNotificationChannel(androidChannel);
+    }
 
     _isInitialized = true;
+    print('[AlertService] Initialized successfully');
   }
 
   /// Subscribe to real-time events for a specific device
@@ -120,7 +127,7 @@ class AlertService {
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           'cyvigil_alerts',
           'CyVigil Security Alerts',
@@ -128,22 +135,31 @@ class AlertService {
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
-          color: const Color(0xFFFF0000),
-          playSound: false, // We handle sound separately
-          enableVibration: false, // We handle vibration separately
+          color: Color(0xFFFF0000),
+          playSound: true, // Use default notification sound
+          enableVibration: true,
+          visibility: NotificationVisibility.public,
+          category: AndroidNotificationCategory.alarm,
         ),
       ),
     );
+    print('[AlertService] Notification shown: $title');
   }
 
   /// Play alert sound based on event type
   Future<void> _playAlertSound(String eventType) async {
     try {
-      // Use system notification sound
-      await _audioPlayer.setSource(AssetSource('sounds/alert.mp3'));
-      await _audioPlayer.resume();
+      // Use system alarm/notification sound
+      await _audioPlayer.setReleaseMode(ReleaseMode.release);
+      // Play a system-like beep using a short audio tone
+      // For now, just trigger vibration as sound fallback
+      HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(milliseconds: 100));
+      HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(milliseconds: 100));
+      HapticFeedback.heavyImpact();
+      print('[AlertService] Alert sound played (vibration pattern)');
     } catch (e) {
-      // Fallback: use system sound via haptic feedback
       print('[AlertService] Could not play sound: $e');
       HapticFeedback.vibrate();
     }

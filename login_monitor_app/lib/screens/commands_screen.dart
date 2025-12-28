@@ -16,6 +16,7 @@ import 'package:iconly/iconly.dart';
 import '../main.dart';
 import '../models/command.dart';
 import '../services/supabase_service.dart';
+import '../services/location_service.dart';
 import '../theme/cyber_theme.dart';
 import '../widgets/custom_toast.dart';
 
@@ -1974,31 +1975,125 @@ class _CommandsScreenState extends State<CommandsScreen> {
   }
 
   Widget _buildLocationResult(Map<String, dynamic> location) {
+    final lat = location['latitude'] as num?;
+    final lng = location['longitude'] as num?;
+    final city = location['city'] as String?;
+    final country = location['country'] as String?;
+    final source = location['source'] as String?;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: CyberColors.surfaceColor,
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [CyberColors.primaryRed.withOpacity(0.1), CyberColors.surfaceColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: CyberColors.primaryRed.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Location', style: TextStyle(color: CyberColors.textPrimary, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          if (location['city'] != null)
-            Text('${location['city']}, ${location['country'] ?? ''}', style: const TextStyle(color: CyberColors.textSecondary)),
-          if (location['latitude'] != null)
-            Text('${location['latitude']}, ${location['longitude']}', style: const TextStyle(color: CyberColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () {
-              final url = location['google_maps'] ?? 'https://www.google.com/maps?q=${location['latitude']},${location['longitude']}';
-              _openMaps(url);
-            },
-            icon: const Icon(Icons.map, size: 18),
-            label: const Text('Open in Maps'),
-            style: ElevatedButton.styleFrom(backgroundColor: CyberColors.primaryRed),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: CyberColors.primaryRed.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.location_on, color: CyberColors.primaryRed, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Location', style: TextStyle(color: CyberColors.textMuted, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    // Show city/country if available, otherwise use FutureBuilder for reverse geocoding
+                    if (city != null && city.isNotEmpty)
+                      Text(
+                        '$city${country != null ? ', $country' : ''}',
+                        style: const TextStyle(color: CyberColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                      )
+                    else if (lat != null && lng != null)
+                      FutureBuilder<String?>(
+                        future: LocationService().getAddressFromCoordinates(lat.toDouble(), lng.toDouble()),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Text('Loading address...', style: TextStyle(color: CyberColors.textSecondary));
+                          }
+                          return Text(
+                            snapshot.data ?? 'Location found',
+                            style: const TextStyle(color: CyberColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                          );
+                        },
+                      )
+                    else
+                      const Text('Unknown location', style: TextStyle(color: CyberColors.textSecondary)),
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (lat != null && lng != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: CyberColors.darkBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.my_location, size: 14, color: CyberColors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}',
+                      style: const TextStyle(color: CyberColors.textSecondary, fontSize: 12, fontFamily: 'monospace'),
+                    ),
+                  ),
+                  if (source != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: source == 'gps' ? CyberColors.successGreen.withOpacity(0.1) : CyberColors.warningOrange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        source.toUpperCase(),
+                        style: TextStyle(
+                          color: source == 'gps' ? CyberColors.successGreen : CyberColors.warningOrange,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final url = location['google_maps'] ?? 'https://www.google.com/maps?q=$lat,$lng';
+                  _openMaps(url);
+                },
+                icon: const Icon(Icons.map, size: 18),
+                label: const Text('Open in Maps'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CyberColors.primaryRed,
+                  foregroundColor: CyberColors.pureWhite,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
