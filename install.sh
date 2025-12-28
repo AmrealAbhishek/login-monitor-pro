@@ -410,6 +410,10 @@ PEOF
         echo "Triggering test event..."
         python3 "$INSTALL_DIR/pro_monitor.py" Test
         ;;
+    location)
+        echo "Setting up location permission..."
+        python3 "$INSTALL_DIR/request_location_permission.py"
+        ;;
     uninstall)
         bash "$INSTALL_DIR/../login-monitor/uninstall.sh" 2>/dev/null || bash /Users/*/tool/login-monitor/uninstall.sh 2>/dev/null || echo "Run: bash /path/to/uninstall.sh"
         ;;
@@ -429,6 +433,7 @@ PEOF
         echo "  logs       View live logs"
         echo "  pair       Generate new 6-digit pairing code"
         echo "  test       Trigger test event"
+        echo "  location   Setup location permission"
         echo "  uninstall  Remove Login Monitor"
         echo "  version    Show version"
         echo ""
@@ -447,14 +452,22 @@ fi
 
 echo -e "${GREEN}✓ CLI command: loginmonitor${NC}"
 
+# Copy location permission helper
+cp "$SCRIPT_DIR/request_location_permission.py" "$INSTALL_DIR/" 2>/dev/null || true
+
 # Final summary
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║           INSTALLATION COMPLETE!                           ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${YELLOW}Note: Grant Camera, Location & Screen Recording permissions${NC}"
-echo -e "${YELLOW}      in System Settings > Privacy & Security${NC}"
+echo -e "${YELLOW}IMPORTANT: Grant permissions in System Settings > Privacy & Security:${NC}"
+echo -e "${YELLOW}  - Camera (for intruder photos)${NC}"
+echo -e "${YELLOW}  - Location Services (for GPS tracking)${NC}"
+echo -e "${YELLOW}  - Screen Recording (for screenshots)${NC}"
+echo ""
+echo -e "${CYAN}To setup Location permission, run:${NC}"
+echo -e "  python3 ~/.login-monitor/request_location_permission.py"
 echo ""
 echo -e "${CYAN}CLI Commands:${NC}"
 echo "  loginmonitor status   - Check if running"
