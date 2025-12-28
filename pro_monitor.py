@@ -65,6 +65,13 @@ try:
 except ImportError:
     HAS_SUPABASE = False
 
+# FCM Push Notifications
+try:
+    from fcm_sender import send_event_notification
+    HAS_FCM = True
+except ImportError:
+    HAS_FCM = False
+
 # Audio recording
 try:
     import pyaudio
@@ -1173,6 +1180,20 @@ class LoginMonitorPro:
                 result = self.supabase.send_event(event_data, photos)
                 if result:
                     log("Supabase event sent")
+
+                    # Send FCM push notification for instant mobile alert
+                    if HAS_FCM:
+                        try:
+                            device_id = self.config.get('supabase', {}).get('device_id')
+                            if device_id:
+                                send_event_notification(
+                                    device_id=device_id,
+                                    event_type=event_data['event_type'],
+                                    username=event_data.get('user'),
+                                    hostname=event_data.get('hostname')
+                                )
+                        except Exception as fcm_err:
+                            log(f"FCM notification error: {fcm_err}", "WARNING")
                 else:
                     log("Supabase event failed", "WARNING")
             except Exception as e:

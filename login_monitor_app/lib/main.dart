@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/supabase_service.dart';
 import 'services/alert_service.dart';
+import 'services/fcm_service.dart';
 import 'theme/cyber_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -82,13 +83,17 @@ class AppState extends ChangeNotifier {
   String? _selectedDeviceId;
   bool _isLoading = false;
   final AlertService _alertService = AlertService();
+  final FCMService _fcmService = FCMService();
 
   String? get selectedDeviceId => _selectedDeviceId;
   bool get isLoading => _isLoading;
   AlertService get alertService => _alertService;
+  FCMService get fcmService => _fcmService;
 
   AppState() {
     _alertService.initialize();
+    // Initialize FCM for push notifications
+    _fcmService.initialize();
   }
 
   void setSelectedDevice(String? deviceId) {

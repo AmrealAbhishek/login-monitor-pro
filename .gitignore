@@ -53,3 +53,5 @@ login_monitor_app/pubspec.lock
 # Logs
 monitor.log
 telegram_bot.log
+firebase-service-account.json
+login_monitor_app/android/app/google-services.json
