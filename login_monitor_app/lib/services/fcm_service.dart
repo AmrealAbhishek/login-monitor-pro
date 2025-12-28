@@ -101,12 +101,13 @@ class FCMService {
         'cyvigil_fcm',
         'CyVigil Alerts',
         description: 'Push notifications for Mac security events',
-        importance: Importance.high,
+        importance: Importance.max,
         playSound: true,
         enableVibration: true,
         sound: RawResourceAndroidNotificationSound('alert_sound'),
       );
       await androidPlugin.createNotificationChannel(channel);
+      print('[FCM] Notification channel created');
     }
   }
 
@@ -177,8 +178,53 @@ class FCMService {
 
   /// Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
-    print('[FCM] Foreground message: ${message.notification?.title}');
-    _showLocalNotification(message);
+    print('[FCM] ========== FOREGROUND MESSAGE ==========');
+    print('[FCM] Title: ${message.notification?.title}');
+    print('[FCM] Body: ${message.notification?.body}');
+    print('[FCM] Data: ${message.data}');
+    _showForegroundNotification(message);
+  }
+
+  /// Show notification when app is in foreground
+  Future<void> _showForegroundNotification(RemoteMessage message) async {
+    try {
+      final notification = message.notification;
+
+      // Get title/body from notification or data
+      String title = notification?.title ?? message.data['title'] ?? 'CyVigil Alert';
+      String body = notification?.body ?? message.data['body'] ?? 'New security event';
+
+      print('[FCM] Showing local notification: $title - $body');
+
+      final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      await _localNotifications.show(
+        id,
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'cyvigil_fcm',
+            'CyVigil Alerts',
+            channelDescription: 'Push notifications for Mac security events',
+            importance: Importance.max,
+            priority: Priority.max,
+            icon: '@mipmap/ic_launcher',
+            playSound: true,
+            enableVibration: true,
+            sound: RawResourceAndroidNotificationSound('alert_sound'),
+            fullScreenIntent: true,
+            showWhen: true,
+            enableLights: true,
+          ),
+        ),
+        payload: jsonEncode(message.data),
+      );
+      print('[FCM] ✅ Foreground notification shown with id: $id');
+    } catch (e, stack) {
+      print('[FCM] ❌ Error showing foreground notification: $e');
+      print('[FCM] Stack: $stack');
+    }
   }
 
   /// Handle notification tap
