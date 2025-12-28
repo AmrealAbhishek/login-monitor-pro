@@ -48,6 +48,10 @@ class FCMService {
       // Get FCM token
       await _getAndSaveToken();
 
+      // Subscribe to broadcast topic for announcements
+      await FirebaseMessaging.instance.subscribeToTopic('all_users');
+      print('[FCM] Subscribed to all_users topic');
+
       // Listen for token refresh
       FirebaseMessaging.instance.onTokenRefresh.listen((token) {
         print('[FCM] Token refreshed');
@@ -80,7 +84,7 @@ class FCMService {
       },
     );
 
-    // Create notification channel
+    // Create notification channel with custom sound
     final androidPlugin = _localNotifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
@@ -92,6 +96,7 @@ class FCMService {
         importance: Importance.high,
         playSound: true,
         enableVibration: true,
+        sound: RawResourceAndroidNotificationSound('alert_sound'),
       );
       await androidPlugin.createNotificationChannel(channel);
     }
@@ -194,6 +199,7 @@ class FCMService {
             icon: '@mipmap/ic_launcher',
             playSound: true,
             enableVibration: true,
+            sound: RawResourceAndroidNotificationSound('alert_sound'),
           ),
         ),
         payload: jsonEncode(message.data),

@@ -165,7 +165,7 @@ def send_fcm_notification(token: str, title: str, body: str, data: dict = None) 
                 "priority": "high",
                 "notification": {
                     "channel_id": "cyvigil_fcm",
-                    "sound": "default",
+                    "sound": "alert_sound",
                     "default_vibrate_timings": True,
                     "notification_priority": "PRIORITY_HIGH"
                 }
@@ -223,6 +223,56 @@ def send_event_notification(device_id: str, event_type: str, username: str = Non
 
     print(f"[FCM] Sent {sent_count}/{len(tokens)} notifications for {event_type} event")
     return sent_count
+
+
+def send_broadcast_notification(title: str, body: str, data: dict = None) -> bool:
+    """Send FCM notification to ALL users via topic 'all_users'"""
+    access_token = get_access_token()
+    if not access_token:
+        return False
+
+    message = {
+        "message": {
+            "topic": "all_users",
+            "notification": {
+                "title": title,
+                "body": body
+            },
+            "android": {
+                "priority": "high",
+                "notification": {
+                    "channel_id": "cyvigil_fcm",
+                    "sound": "alert_sound",
+                    "default_vibrate_timings": True,
+                    "notification_priority": "PRIORITY_HIGH"
+                }
+            }
+        }
+    }
+
+    if data:
+        message["message"]["data"] = {k: str(v) for k, v in data.items()}
+
+    try:
+        response = requests.post(
+            FCM_URL,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            },
+            json=message
+        )
+
+        if response.status_code == 200:
+            print(f"[FCM] ✅ Broadcast sent to all users")
+            return True
+        else:
+            print(f"[FCM] ❌ Broadcast failed: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        print(f"[FCM] Error sending broadcast: {e}")
+        return False
 
 
 # Test function

@@ -38,7 +38,7 @@ class AlertService {
     if (androidPlugin != null) {
       await androidPlugin.requestNotificationsPermission();
 
-      // Create notification channel for alerts
+      // Create notification channel for alerts with custom sound
       const androidChannel = AndroidNotificationChannel(
         'cyvigil_alerts',
         'CyVigil Security Alerts',
@@ -46,6 +46,7 @@ class AlertService {
         importance: Importance.high,
         playSound: true,
         enableVibration: true,
+        sound: RawResourceAndroidNotificationSound('alert_sound'),
       );
       await androidPlugin.createNotificationChannel(androidChannel);
     }
@@ -136,10 +137,11 @@ class AlertService {
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
           color: Color(0xFFFF0000),
-          playSound: true, // Use default notification sound
+          playSound: true,
           enableVibration: true,
           visibility: NotificationVisibility.public,
           category: AndroidNotificationCategory.alarm,
+          sound: RawResourceAndroidNotificationSound('alert_sound'),
         ),
       ),
     );
