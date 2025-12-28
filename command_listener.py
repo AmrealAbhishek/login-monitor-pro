@@ -190,23 +190,107 @@ class CommandListener:
                 return {"success": False, "error": str(e)}
 
     def cmd_audio(self, args: dict) -> dict:
-        """Record audio"""
+        """Record audio with multiple fallback methods"""
         try:
             duration = args.get("duration", 10)
+            audio_path = None
 
-            from pro_monitor import Capture
-            audio_path = Capture.record_audio(duration=duration)
+            # Method 1: Try PyAudio via pro_monitor
+            try:
+                from pro_monitor import Capture
+                audio_path = Capture.record_audio(duration=duration)
+                if audio_path:
+                    log(f"[INFO] Audio recorded via PyAudio")
+            except Exception as e:
+                log(f"[WARN] PyAudio failed: {e}")
 
-            # Upload audio
+            # Method 2: Fallback to sox/rec command
+            if not audio_path:
+                try:
+                    # Check if sox is installed
+                    sox_paths = ["/opt/homebrew/bin/rec", "/usr/local/bin/rec", "/usr/bin/rec"]
+                    rec_cmd = None
+                    for path in sox_paths:
+                        if os.path.exists(path):
+                            rec_cmd = path
+                            break
+
+                    if not rec_cmd:
+                        # Try to find via which
+                        result = subprocess.run(["which", "rec"], capture_output=True, text=True)
+                        if result.returncode == 0:
+                            rec_cmd = result.stdout.strip()
+
+                    if rec_cmd:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        audio_file = BASE_DIR / "captured_audio" / f"audio_{timestamp}.wav"
+                        audio_file.parent.mkdir(parents=True, exist_ok=True)
+
+                        log(f"[INFO] Recording {duration}s audio via sox...")
+                        result = subprocess.run(
+                            [rec_cmd, "-q", str(audio_file), "trim", "0", str(duration)],
+                            capture_output=True,
+                            timeout=duration + 10
+                        )
+
+                        if audio_file.exists() and audio_file.stat().st_size > 1000:
+                            audio_path = str(audio_file)
+                            log(f"[INFO] Audio recorded via sox: {audio_path}")
+                        else:
+                            log("[WARN] sox recording failed or file too small")
+                    else:
+                        log("[WARN] sox/rec not found - install with: brew install sox")
+                except subprocess.TimeoutExpired:
+                    log("[ERROR] Audio recording timeout")
+                except Exception as e:
+                    log(f"[ERROR] sox recording error: {e}")
+
+            # Method 3: Fallback to ffmpeg
+            if not audio_path:
+                try:
+                    ffmpeg_paths = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+                    ffmpeg_cmd = None
+                    for path in ffmpeg_paths:
+                        if os.path.exists(path):
+                            ffmpeg_cmd = path
+                            break
+
+                    if ffmpeg_cmd:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        audio_file = BASE_DIR / "captured_audio" / f"audio_{timestamp}.wav"
+                        audio_file.parent.mkdir(parents=True, exist_ok=True)
+
+                        log(f"[INFO] Recording {duration}s audio via ffmpeg...")
+                        result = subprocess.run([
+                            ffmpeg_cmd, "-y", "-f", "avfoundation",
+                            "-i", ":0", "-t", str(duration),
+                            "-acodec", "pcm_s16le", str(audio_file)
+                        ], capture_output=True, timeout=duration + 10)
+
+                        if audio_file.exists() and audio_file.stat().st_size > 1000:
+                            audio_path = str(audio_file)
+                            log(f"[INFO] Audio recorded via ffmpeg: {audio_path}")
+                except Exception as e:
+                    log(f"[WARN] ffmpeg recording error: {e}")
+
+            # Upload audio if captured
             audio_url = None
             if audio_path and self.client and self.device_id:
                 audio_url = self.client.upload_file(self.device_id, audio_path, "audio")
 
-            return {
-                "success": bool(audio_path),
-                "duration": duration,
-                "audio_url": audio_url
-            }
+            if audio_path:
+                return {
+                    "success": True,
+                    "duration": duration,
+                    "audio_url": audio_url
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Audio recording failed. Install PyAudio (pip3 install pyaudio) or sox (brew install sox)"
+                }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -467,6 +551,36 @@ class CommandListener:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def cmd_stop(self, args: dict) -> dict:
+        """Universal stop command - stops all running actions (alarm, findme, audio recording)"""
+        try:
+            stopped = []
+
+            # Stop alarm/findme sounds (afplay)
+            result = subprocess.run(["pkill", "-f", "afplay"], capture_output=True)
+            if result.returncode == 0:
+                stopped.append("alarm/sound")
+
+            # Stop sox/rec audio recording
+            result = subprocess.run(["pkill", "-f", "rec"], capture_output=True)
+            if result.returncode == 0:
+                stopped.append("audio (rec)")
+
+            # Stop any Python audio recording (SoundDevice/PyAudio based)
+            result = subprocess.run(["pkill", "-f", "sounddevice"], capture_output=True)
+            if result.returncode == 0:
+                stopped.append("audio (sounddevice)")
+
+            message = f"Stopped: {', '.join(stopped)}" if stopped else "No active commands to stop"
+
+            return {
+                "success": True,
+                "stopped": stopped,
+                "message": message
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def cmd_listusb(self, args: dict) -> dict:
         """List connected USB devices"""
         try:
@@ -650,7 +764,7 @@ class CommandListener:
             return {"success": False, "error": str(e)}
 
     def cmd_appusage(self, args: dict) -> dict:
-        """Get app usage summary"""
+        """Get app usage summary with current running apps"""
         try:
             from app_tracker import AppTracker
             tracker = AppTracker()
@@ -658,7 +772,23 @@ class CommandListener:
             hours = args.get("hours", 24)
             summary = tracker.get_usage_summary(hours=hours)
 
-            return {"success": True, "usage": summary}
+            # Check for error in summary
+            if "error" in summary:
+                return {"success": False, "error": summary["error"]}
+
+            # Add currently running apps
+            running_apps = tracker.get_running_apps()
+
+            return {
+                "success": True,
+                "usage": {
+                    "period_hours": summary.get("period_hours", hours),
+                    "apps": summary.get("apps", []),
+                    "running_apps": running_apps,
+                    "running_count": len(running_apps),
+                    "generated_at": summary.get("generated_at")
+                }
+            }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -723,6 +853,7 @@ class CommandListener:
             # New v3.0 commands
             "findme": self.cmd_findme,
             "stopfind": self.cmd_stopfind,
+            "stop": self.cmd_stop,  # Universal stop command
             "listusb": self.cmd_listusb,
             "whitelistusb": self.cmd_whitelistusb,
             "listnetworks": self.cmd_listnetworks,

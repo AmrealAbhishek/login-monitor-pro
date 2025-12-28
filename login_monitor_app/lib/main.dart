@@ -15,6 +15,7 @@ import 'screens/security_dashboard_screen.dart';
 import 'screens/find_mac_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/geofence_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +61,7 @@ class LoginMonitorApp extends StatelessWidget {
           '/findmac': (context) => const FindMacScreen(),
           '/reports': (context) => const ReportsScreen(),
           '/geofence': (context) => const GeofenceScreen(),
+          '/profile': (context) => const ProfileScreen(),
         },
         onGenerateRoute: (settings) {
           if (settings.name == '/event-detail') {

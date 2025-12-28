@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../main.dart';
 import '../theme/cyber_theme.dart';
 import '../widgets/neon_card.dart';
@@ -20,9 +22,14 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
   List<Map<String, dynamic>> _geofences = [];
   bool _isLoading = true;
   bool _isAddingGeofence = false;
+  bool _isSearching = false;
+  bool _isGettingLocation = false;
   LatLng? _selectedLocation;
+  LatLng? _currentLocation;
   double _selectedRadius = 500;
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  List<Location> _searchResults = [];
 
   // Default center (will be updated to device location)
   LatLng _center = const LatLng(28.6139, 77.2090); // Delhi
@@ -31,12 +38,114 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
   void initState() {
     super.initState();
     _loadGeofences();
+    _getCurrentLocation();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() => _isGettingLocation = true);
+
+    try {
+      // Check permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permission denied'),
+                backgroundColor: CyberColors.alertRed,
+              ),
+            );
+          }
+          setState(() => _isGettingLocation = false);
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission permanently denied. Enable in Settings.'),
+              backgroundColor: CyberColors.alertRed,
+            ),
+          );
+        }
+        setState(() => _isGettingLocation = false);
+        return;
+      }
+
+      // Get current position
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+        _isGettingLocation = false;
+      });
+
+      // Center map on current location if no geofences
+      if (_geofences.isEmpty && _currentLocation != null) {
+        _center = _currentLocation!;
+        _mapController.move(_center, 14);
+      }
+    } catch (e) {
+      debugPrint('Error getting location: $e');
+      setState(() => _isGettingLocation = false);
+    }
+  }
+
+  void _centerOnCurrentLocation() {
+    if (_currentLocation != null) {
+      _mapController.move(_currentLocation!, 15);
+    } else {
+      _getCurrentLocation();
+    }
+  }
+
+  Future<void> _searchLocation(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearching = true);
+
+    try {
+      final locations = await locationFromAddress(query);
+      setState(() {
+        _searchResults = locations.take(5).toList();
+        _isSearching = false;
+      });
+    } catch (e) {
+      debugPrint('Geocoding error: $e');
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+    }
+  }
+
+  void _selectSearchResult(Location location) {
+    final point = LatLng(location.latitude, location.longitude);
+    setState(() {
+      _selectedLocation = point;
+      _searchResults = [];
+      _searchController.clear();
+    });
+    _mapController.move(point, 15);
   }
 
   Future<void> _loadGeofences() async {
@@ -199,6 +308,17 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
     }
   }
 
+  void _useCurrentLocationForGeofence() {
+    if (_currentLocation != null) {
+      setState(() {
+        _selectedLocation = _currentLocation;
+      });
+      _mapController.move(_currentLocation!, 15);
+    } else {
+      _getCurrentLocation();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -217,6 +337,92 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
             )
           : Column(
               children: [
+                // Search bar
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  color: CyberColors.darkBackground,
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search location...',
+                          prefixIcon: const Icon(Icons.search, color: CyberColors.textMuted),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: CyberColors.textMuted),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchResults = []);
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: CyberColors.surfaceColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        onChanged: (value) {
+                          if (value.length > 2) {
+                            _searchLocation(value);
+                          } else {
+                            setState(() => _searchResults = []);
+                          }
+                        },
+                        onSubmitted: _searchLocation,
+                      ),
+                      // Search results
+                      if (_searchResults.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          decoration: BoxDecoration(
+                            color: CyberColors.surfaceColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: _searchResults.map((location) {
+                              return ListTile(
+                                leading: const Icon(Icons.location_on, color: CyberColors.primaryRed),
+                                title: FutureBuilder<List<Placemark>>(
+                                  future: placemarkFromCoordinates(location.latitude, location.longitude),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                      final place = snapshot.data!.first;
+                                      return Text(
+                                        '${place.locality ?? ''}, ${place.country ?? ''}',
+                                        style: const TextStyle(color: CyberColors.textPrimary),
+                                      );
+                                    }
+                                    return Text(
+                                      '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}',
+                                      style: const TextStyle(color: CyberColors.textPrimary),
+                                    );
+                                  },
+                                ),
+                                subtitle: Text(
+                                  '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}',
+                                  style: const TextStyle(color: CyberColors.textSecondary, fontSize: 12),
+                                ),
+                                onTap: () => _selectSearchResult(location),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      if (_isSearching)
+                        const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: CyberColors.primaryRed,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
                 // Map
                 Expanded(
                   flex: 3,
@@ -258,11 +464,43 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
                                   borderColor: CyberColors.successGreen,
                                   borderStrokeWidth: 3,
                                 ),
+                              // Current location accuracy circle
+                              if (_currentLocation != null)
+                                CircleMarker(
+                                  point: _currentLocation!,
+                                  radius: 50,
+                                  useRadiusInMeter: true,
+                                  color: Colors.blue.withOpacity(0.15),
+                                  borderColor: Colors.blue.withOpacity(0.5),
+                                  borderStrokeWidth: 1,
+                                ),
                             ],
                           ),
-                          // Geofence markers
+                          // Markers
                           MarkerLayer(
                             markers: [
+                              // Current location marker (blue dot)
+                              if (_currentLocation != null)
+                                Marker(
+                                  point: _currentLocation!,
+                                  width: 24,
+                                  height: 24,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.blue.withOpacity(0.5),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              // Geofence markers
                               ..._geofences.map((g) => Marker(
                                     point: LatLng(
                                       (g['latitude'] as num).toDouble(),
@@ -344,6 +582,30 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
                             ),
                           ),
                         ),
+                      // My Location button
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: Column(
+                          children: [
+                            FloatingActionButton.small(
+                              heroTag: 'myLocation',
+                              onPressed: _isGettingLocation ? null : _centerOnCurrentLocation,
+                              backgroundColor: CyberColors.darkBackground,
+                              child: _isGettingLocation
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.blue,
+                                      ),
+                                    )
+                                  : const Icon(Icons.my_location, color: Colors.blue),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -408,6 +670,21 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Use current location button
+          if (_currentLocation != null && _selectedLocation != _currentLocation)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: OutlinedButton.icon(
+                onPressed: _useCurrentLocationForGeofence,
+                icon: const Icon(Icons.my_location, color: Colors.blue, size: 18),
+                label: const Text('Use Current Location', style: TextStyle(color: Colors.blue)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.blue),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ),
 
           // Radius slider
           Row(

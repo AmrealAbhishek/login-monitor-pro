@@ -22,6 +22,9 @@ class CyberColors {
   static const Color textSecondary = Color(0xFFAAAAAA);
   static const Color textMuted = Color(0xFF666666);
 
+  // Border Colors
+  static const Color borderColor = Color(0xFF333333);
+
   // Accent Colors (keeping for alerts)
   static const Color alertRed = Color(0xFFFF0000);
   static const Color successGreen = Color(0xFF00CC66);
