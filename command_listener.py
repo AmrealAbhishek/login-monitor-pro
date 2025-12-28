@@ -900,18 +900,32 @@ class CommandListener:
     def on_realtime_command(self, payload):
         """Callback when a command is received via Realtime"""
         try:
-            log(f"[REALTIME] Event: {payload.get('eventType')}")
+            # Payload is a dict with 'data' containing the event info
+            if isinstance(payload, dict) and 'data' in payload:
+                data = payload['data']
+                record = data.get('record', {})
+                event_type = data.get('type')
 
-            if payload.get('eventType') == 'INSERT':
-                record = payload.get('new', {})
+                # event_type is an enum, convert to string for comparison
+                event_type_str = str(event_type) if event_type else ''
 
-                # Check if this command is for our device and pending
-                if (record.get('device_id') == self.device_id and
-                    record.get('status') == 'pending'):
-                    log(f"[REALTIME] New command: {record.get('command')}")
+                # Check if this is an INSERT and command is pending
+                if 'INSERT' in event_type_str.upper() or 'insert' in event_type_str.lower():
+                    if record and record.get('status') == 'pending':
+                        log(f"[REALTIME] >>> Executing: {record.get('command')}")
+                        self.execute_command(record)
+                        return
+
+            # Fallback: try other formats
+            if hasattr(payload, 'data'):
+                data = payload.data
+                record = data.get('record', {})
+                if record and record.get('status') == 'pending':
+                    log(f"[REALTIME] >>> Executing: {record.get('command')}")
                     self.execute_command(record)
 
         except Exception as e:
+            import traceback
             log(f"[REALTIME] Error: {e}")
 
     def heartbeat_loop(self):
