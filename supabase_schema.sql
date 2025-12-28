@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS commands (
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
+  display_name TEXT,
+  phone_number TEXT,
+  avatar_url TEXT,
   fcm_token TEXT,  -- Firebase Cloud Messaging token for push notifications
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -144,13 +147,17 @@ CREATE POLICY "Users can insert own profile" ON profiles
 -- STORAGE BUCKETS
 -- ============================================================================
 
--- Create storage buckets for photos and audio
+-- Create storage buckets for photos, audio, and avatars
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('photos', 'photos', false)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('audio', 'audio', false)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for photos bucket
@@ -189,6 +196,28 @@ CREATE POLICY "Users can delete own audio" ON storage.objects
   FOR DELETE USING (
     bucket_id = 'audio' AND
     auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Storage policies for avatars bucket (public read, authenticated write)
+CREATE POLICY "Anyone can view avatars" ON storage.objects
+  FOR SELECT USING (bucket_id = 'avatars');
+
+CREATE POLICY "Users can upload avatars" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'avatars' AND
+    auth.uid() IS NOT NULL
+  );
+
+CREATE POLICY "Users can update avatars" ON storage.objects
+  FOR UPDATE USING (
+    bucket_id = 'avatars' AND
+    auth.uid() IS NOT NULL
+  );
+
+CREATE POLICY "Users can delete avatars" ON storage.objects
+  FOR DELETE USING (
+    bucket_id = 'avatars' AND
+    auth.uid() IS NOT NULL
   );
 
 -- ============================================================================
