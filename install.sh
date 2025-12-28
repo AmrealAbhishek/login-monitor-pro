@@ -291,26 +291,12 @@ nohup python3 command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
 
 echo -e "${GREEN}✓ Services started${NC}"
 
-# Request Screen Recording permission
+# Screen Recording permission note
 echo ""
-echo -e "${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${YELLOW}║  IMPORTANT: Screen Recording Permission Required           ║${NC}"
-echo -e "${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "For screenshots to work, you must grant Screen Recording permission:"
-echo -e "  1. System Settings will open automatically"
-echo -e "  2. Click ${GREEN}+${NC} button"
-echo -e "  3. Navigate to: ${CYAN}~/.login-monitor/${NC}"
-echo -e "  4. Add: ${CYAN}LoginMonitorCommands.app${NC}"
-echo -e "  5. Also add your Terminal app (Terminal.app or Warp.app)"
-echo -e "  6. Restart your Mac"
+echo -e "${YELLOW}NOTE: For screenshots to work, run 'loginmonitor screen' after installation.${NC}"
 echo ""
 
-# Open Screen Recording settings and Finder to app location
-open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" 2>/dev/null || true
-open "$INSTALL_DIR" 2>/dev/null || true
-
-sleep 2
+sleep 1
 
 echo -e "${BLUE}[7/7]${NC} Creating CLI command..."
 
@@ -436,6 +422,10 @@ PEOF
         echo "Using Python: $PYTHON_PATH"
         "$PYTHON_PATH" "$INSTALL_DIR/request_location_permission.py"
         ;;
+    screen)
+        echo "Setting up screen recording permission..."
+        python3 "$INSTALL_DIR/request_screen_permission.py"
+        ;;
     uninstall)
         bash "$INSTALL_DIR/../login-monitor/uninstall.sh" 2>/dev/null || bash /Users/*/tool/login-monitor/uninstall.sh 2>/dev/null || echo "Run: bash /path/to/uninstall.sh"
         ;;
@@ -455,7 +445,8 @@ PEOF
         echo "  logs       View live logs"
         echo "  pair       Generate new 6-digit pairing code"
         echo "  test       Trigger test event"
-        echo "  location   Setup location permission"
+        echo "  location   Setup location permission (for GPS)"
+        echo "  screen     Setup screen recording permission"
         echo "  uninstall  Remove Login Monitor"
         echo "  version    Show version"
         echo ""
@@ -474,8 +465,21 @@ fi
 
 echo -e "${GREEN}✓ CLI command: loginmonitor${NC}"
 
-# Copy location permission helper
-cp "$SCRIPT_DIR/request_location_permission.py" "$INSTALL_DIR/" 2>/dev/null || true
+# Copy permission helper scripts
+if [ -f "$SCRIPT_DIR/request_location_permission.py" ]; then
+    cp "$SCRIPT_DIR/request_location_permission.py" "$INSTALL_DIR/" 2>/dev/null || true
+else
+    # Download from GitHub if running via curl
+    curl -fsSL "$GITHUB_RAW/request_location_permission.py" -o "$INSTALL_DIR/request_location_permission.py" 2>/dev/null || true
+fi
+
+if [ -f "$SCRIPT_DIR/request_screen_permission.py" ]; then
+    cp "$SCRIPT_DIR/request_screen_permission.py" "$INSTALL_DIR/" 2>/dev/null || true
+else
+    # Download from GitHub if running via curl
+    curl -fsSL "$GITHUB_RAW/request_screen_permission.py" -o "$INSTALL_DIR/request_screen_permission.py" 2>/dev/null || true
+fi
+chmod +x "$INSTALL_DIR"/*.py 2>/dev/null || true
 
 # Final summary
 echo ""
@@ -483,13 +487,17 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║           INSTALLATION COMPLETE!                           ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${YELLOW}IMPORTANT: Grant permissions in System Settings > Privacy & Security:${NC}"
-echo -e "${YELLOW}  - Camera (for intruder photos)${NC}"
-echo -e "${YELLOW}  - Location Services (for GPS tracking)${NC}"
-echo -e "${YELLOW}  - Screen Recording (for screenshots)${NC}"
+echo -e "${YELLOW}IMPORTANT: Setup permissions for full functionality:${NC}"
 echo ""
-echo -e "${CYAN}To setup Location permission, run:${NC}"
-echo -e "  python3 ~/.login-monitor/request_location_permission.py"
+echo -e "${CYAN}1. Screen Recording (for screenshots):${NC}"
+echo -e "   Run: ${GREEN}loginmonitor screen${NC}"
+echo -e "   This will guide you to grant permission to your Terminal app."
+echo ""
+echo -e "${CYAN}2. Location Services (for GPS tracking):${NC}"
+echo -e "   Run: ${GREEN}loginmonitor location${NC}"
+echo ""
+echo -e "${CYAN}3. Camera (for intruder photos):${NC}"
+echo -e "   Grant permission when prompted by macOS."
 echo ""
 echo -e "${CYAN}CLI Commands:${NC}"
 echo "  loginmonitor status   - Check if running"
