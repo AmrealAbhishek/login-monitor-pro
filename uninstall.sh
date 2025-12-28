@@ -23,17 +23,28 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 echo ""
-echo -e "${BLUE}[1/4]${NC} Stopping services..."
+echo -e "${BLUE}[1/5]${NC} Stopping services..."
 
-# Unload LaunchAgents
+# Kill all related processes
+pkill -9 -f "screen_watcher.py" 2>/dev/null || true
+pkill -9 -f "command_listener.py" 2>/dev/null || true
+pkill -9 -f "pro_monitor.py" 2>/dev/null || true
+pkill -9 -f "LoginMonitorCommands" 2>/dev/null || true
+
+echo -e "${GREEN}✓ Processes stopped${NC}"
+
+echo -e "${BLUE}[2/5]${NC} Unloading LaunchAgents..."
+
+# Unload all LaunchAgents
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.telegram.plist" 2>/dev/null || true
 
-# Kill processes
-pkill -f "screen_watcher.py" 2>/dev/null || true
-pkill -f "command_listener.py" 2>/dev/null || true
+echo -e "${GREEN}✓ LaunchAgents unloaded${NC}"
 
-# Remove from Login Items
+echo -e "${BLUE}[3/5]${NC} Removing from Login Items..."
+
+# Remove from Login Items (suppress errors - may fail without Automation permission)
 osascript << 'OSEOF' 2>/dev/null || true
 tell application "System Events"
     try
@@ -42,25 +53,26 @@ tell application "System Events"
 end tell
 OSEOF
 
-echo -e "${GREEN}✓ Services stopped${NC}"
+echo -e "${GREEN}✓ Login Items cleaned${NC}"
 
-echo -e "${BLUE}[2/4]${NC} Removing LaunchAgents..."
+echo -e "${BLUE}[4/5]${NC} Removing files..."
 
+# Remove LaunchAgent plist files
 rm -f "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
 rm -f "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist"
+rm -f "$LAUNCH_AGENTS_DIR/com.loginmonitor.telegram.plist"
 
-echo -e "${GREEN}✓ LaunchAgents removed${NC}"
-
-echo -e "${BLUE}[3/4]${NC} Removing files..."
-
-# Remove all files (no backup for one-liner uninstall)
+# Remove installation directory
 rm -rf "$INSTALL_DIR"
+
+# Remove CLI command
 rm -f "$CLI_PATH"
 
 echo -e "${GREEN}✓ Files removed${NC}"
 
-echo -e "${BLUE}[4/4]${NC} Cleaning up..."
+echo -e "${BLUE}[5/5]${NC} Cleaning up..."
 
+# Remove log files
 rm -f /tmp/loginmonitor-*.log
 
 echo -e "${GREEN}✓ Cleanup complete${NC}"
@@ -70,4 +82,8 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║           UNINSTALL COMPLETE!                              ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "Login Monitor PRO has been removed."
+echo "Login Monitor PRO has been completely removed from this Mac."
+echo ""
+echo -e "${YELLOW}Note: To reinstall, run:${NC}"
+echo "  curl -fsSL https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/install.sh | bash"
+echo ""
