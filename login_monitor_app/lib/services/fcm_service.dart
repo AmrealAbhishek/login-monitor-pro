@@ -52,6 +52,14 @@ class FCMService {
       await FirebaseMessaging.instance.subscribeToTopic('all_users');
       print('[FCM] Subscribed to all_users topic');
 
+      // Set foreground notification presentation options
+      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      print('[FCM] Foreground presentation options set');
+
       // Listen for token refresh
       FirebaseMessaging.instance.onTokenRefresh.listen((token) {
         print('[FCM] Token refreshed');
