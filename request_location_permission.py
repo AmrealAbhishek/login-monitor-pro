@@ -6,13 +6,34 @@ Run this script ONCE after installation to grant location permission.
 This script must be run interactively (not as a background service)
 so that macOS can show the permission dialog.
 
+IMPORTANT: Run this with the SAME Python that command_listener uses!
+
 Usage:
+    loginmonitor location
+    OR
     python3 request_location_permission.py
 """
 
 import sys
+import os
 import time
 import platform
+import json
+from pathlib import Path
+
+
+def get_config_python():
+    """Get the Python path from config.json"""
+    config_path = Path.home() / ".login-monitor" / "config.json"
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+                return config.get("python_path", "")
+        except:
+            pass
+    return ""
+
 
 def main():
     print("\n" + "="*60)
@@ -23,18 +44,34 @@ def main():
         print("This script is only for macOS.")
         return False
 
+    # Show which Python we're using
+    current_python = sys.executable
+    config_python = get_config_python()
+
+    print(f"[INFO] Running with: {current_python}")
+
+    if config_python and current_python != config_python:
+        print(f"[WARNING] Config uses different Python: {config_python}")
+        print(f"[TIP] For best results, run:")
+        print(f"      {config_python} {__file__}")
+        print("")
+
     # Check if CoreLocation is available
     try:
         import CoreLocation
         print("[OK] CoreLocation framework available")
     except ImportError:
         print("[ERROR] CoreLocation framework not installed!")
-        print("Run: pip3 install pyobjc-framework-CoreLocation")
+        print(f"Run: {current_python} -m pip install pyobjc-framework-CoreLocation")
         return False
 
     print("\nRequesting location permission...")
     print("A system dialog should appear asking for location access.")
-    print("Please click 'Allow' when prompted.\n")
+    print("Please click 'Allow' when prompted.")
+    print("\nNOTE: If no dialog appears, you may need to:")
+    print("  1. Go to System Settings > Privacy & Security > Location Services")
+    print("  2. Find 'Python' in the list and enable it")
+    print("")
 
     try:
         # Create location manager

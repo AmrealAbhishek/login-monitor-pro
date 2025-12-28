@@ -74,26 +74,45 @@ fi
 echo -e "${GREEN}✓ imagesnap${NC}"
 
 # Python path
-# Find the best Python to use (prefer system Python for better permission handling)
-if [ -f "/Library/Developer/CommandLineTools/usr/bin/python3" ]; then
-    PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
-elif [ -f "/usr/bin/python3" ]; then
-    PYTHON_CMD="/usr/bin/python3"
-else
-    PYTHON_CMD=$(which python3)
+# Find the best Python to use - prefer one that's commonly used and supports pyobjc
+# Priority: python.org Python > Homebrew Python > System Python
+PYTHON_CMD=""
+
+# First, try to find python.org Python (most reliable for pyobjc)
+for PY in /Library/Frameworks/Python.framework/Versions/3.*/bin/python3; do
+    if [ -x "$PY" ]; then
+        PYTHON_CMD="$PY"
+        break
+    fi
+done
+
+# Fallback to Homebrew Python
+if [ -z "$PYTHON_CMD" ] && [ -x "/opt/homebrew/bin/python3" ]; then
+    PYTHON_CMD="/opt/homebrew/bin/python3"
 fi
+
+# Fallback to system Python
+if [ -z "$PYTHON_CMD" ]; then
+    if [ -f "/Library/Developer/CommandLineTools/usr/bin/python3" ]; then
+        PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
+    elif [ -f "/usr/bin/python3" ]; then
+        PYTHON_CMD="/usr/bin/python3"
+    else
+        PYTHON_CMD=$(which python3)
+    fi
+fi
+
 echo -e "${CYAN}Using Python: $PYTHON_CMD${NC}"
 
-# Install Python packages
+# Install Python packages for the selected Python
 echo "Installing Python packages..."
-# Install for the primary Python
-$PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa 2>/dev/null || true
+$PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase 2>/dev/null || true
 
-# Also install for any other Python versions found (Homebrew, etc.)
-for PY in /Library/Frameworks/Python.framework/Versions/*/bin/python3 /usr/local/bin/python3 /opt/homebrew/bin/python3; do
+# Also install for other Python versions (in case user runs scripts manually)
+for PY in /Library/Frameworks/Python.framework/Versions/*/bin/python3 /usr/local/bin/python3 /opt/homebrew/bin/python3 /Library/Developer/CommandLineTools/usr/bin/python3; do
     if [ -x "$PY" ] && [ "$PY" != "$PYTHON_CMD" ]; then
         echo -e "${CYAN}Installing packages for $PY...${NC}"
-        $PY -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa 2>/dev/null || true
+        $PY -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase 2>/dev/null || true
     fi
 done
 echo -e "${GREEN}✓ Python packages${NC}"
