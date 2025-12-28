@@ -749,7 +749,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(cmd.icon, style: const TextStyle(fontSize: 24)),
+            Icon(cmd.icon, color: CyberColors.primaryRed, size: 24),
             const SizedBox(height: 6),
             Text(
               cmd.name,

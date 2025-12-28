@@ -413,40 +413,52 @@ class SystemInfo:
             try:
                 manager = CoreLocation.CLLocationManager.alloc().init()
 
-                # Request authorization
+                # Check authorization status
                 auth_status = manager.authorizationStatus()
-                if auth_status == 0:  # Not determined
+                # 0 = Not Determined, 1 = Restricted, 2 = Denied, 3 = Authorized Always, 4 = Authorized When In Use
+
+                if auth_status == 2:  # Denied
+                    log("Location Services DENIED - grant permission in System Settings > Privacy & Security > Location Services", "ERROR")
+                    # Fall through to IP location
+                elif auth_status == 0:  # Not determined
+                    log("Requesting location authorization...")
                     manager.requestWhenInUseAuthorization()
-                    time.sleep(1)
+                    time.sleep(2)  # Wait for user response
+                    auth_status = manager.authorizationStatus()
 
-                manager.startUpdatingLocation()
+                # Only proceed if authorized
+                if auth_status >= 3:  # Authorized
+                    manager.startUpdatingLocation()
 
-                timeout = 15  # Increased timeout for GPS lock
-                start = time.time()
+                    timeout = 20  # Increased timeout for GPS lock
+                    start = time.time()
 
-                while time.time() - start < timeout:
-                    location = manager.location()
-                    if location:
-                        lat = location.coordinate().latitude
-                        lon = location.coordinate().longitude
-                        accuracy = location.horizontalAccuracy()
+                    while time.time() - start < timeout:
+                        location = manager.location()
+                        if location:
+                            lat = location.coordinate().latitude
+                            lon = location.coordinate().longitude
+                            accuracy = location.horizontalAccuracy()
 
-                        # Only accept if accuracy is reasonable (< 1000m)
-                        if accuracy > 0 and accuracy < 1000:
-                            manager.stopUpdatingLocation()
-                            log(f"GPS location acquired (accuracy: {accuracy}m)")
+                            # Accept if accuracy is reasonable (< 5000m for initial, prefer < 100m)
+                            if accuracy > 0 and accuracy < 5000:
+                                manager.stopUpdatingLocation()
+                                log(f"[INFO] GPS location acquired (accuracy: {accuracy}m)")
 
-                            return {
-                                'latitude': round(lat, 6),
-                                'longitude': round(lon, 6),
-                                'accuracy_meters': round(accuracy, 1),
-                                'google_maps': f"https://www.google.com/maps?q={lat},{lon}",
-                                'source': 'GPS/CoreLocation'
-                            }
-                    time.sleep(0.5)
+                                return {
+                                    'latitude': round(lat, 6),
+                                    'longitude': round(lon, 6),
+                                    'accuracy_meters': round(accuracy, 1),
+                                    'google_maps': f"https://www.google.com/maps?q={lat},{lon}",
+                                    'source': 'GPS/CoreLocation'
+                                }
+                        time.sleep(0.5)
 
-                manager.stopUpdatingLocation()
-                log("GPS timeout - falling back to IP location", "WARNING")
+                    manager.stopUpdatingLocation()
+                    log("GPS timeout - falling back to IP location", "WARNING")
+                else:
+                    log(f"Location not authorized (status: {auth_status}). Grant permission in System Settings > Privacy & Security > Location Services > Python/Terminal", "WARNING")
+
             except Exception as e:
                 log(f"CoreLocation error: {e}", "ERROR")
 

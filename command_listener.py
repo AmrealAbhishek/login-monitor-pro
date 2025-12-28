@@ -622,17 +622,32 @@ class CommandListener:
             return {"success": False, "error": str(e)}
 
     def cmd_listnetworks(self, args: dict) -> dict:
-        """List whitelisted WiFi networks"""
+        """List WiFi networks - current connection and whitelisted networks"""
         try:
             from network_monitor import NetworkMonitor
             monitor = NetworkMonitor()
-            networks = monitor.list_known_networks()
+            whitelisted = monitor.list_known_networks()
             current = monitor.get_current_wifi()
+
+            # Get current network info
+            current_info = None
+            if current:
+                current_ssid = current.get("ssid", "")
+                current_info = {
+                    "ssid": current_ssid,
+                    "bssid": current.get("bssid", ""),
+                    "channel": current.get("channel", ""),
+                    "security": current.get("security", ""),
+                    "rssi": current.get("rssi", ""),
+                    "is_whitelisted": current_ssid in whitelisted
+                }
 
             return {
                 "success": True,
-                "networks": networks,
-                "current_network": current.get("ssid") if current else None
+                "current_network": current_info,
+                "whitelisted_networks": whitelisted,
+                "whitelisted_count": len(whitelisted),
+                "tip": "Use 'whitelistnetwork' command to add current network to whitelist"
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

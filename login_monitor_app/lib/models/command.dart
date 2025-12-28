@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:iconly/iconly.dart';
+
 enum CommandStatus { pending, executing, completed, failed }
 
 class DeviceCommand {
@@ -68,51 +71,67 @@ class DeviceCommand {
     };
   }
 
-  String get commandIcon {
+  IconData get commandIcon {
     switch (command.toLowerCase()) {
       case 'photo':
-        return '📷';
+        return IconlyBold.camera;
       case 'location':
-        return '📍';
+        return IconlyBold.location;
       case 'audio':
-        return '🎙️';
+        return IconlyBold.voice;
       case 'screenshot':
-        return '🖥️';
+        return IconlyBold.image;
       case 'status':
-        return '📊';
+        return IconlyBold.info_circle;
       case 'battery':
-        return '🔋';
+        return Icons.battery_full;  // Material icon for battery
       case 'wifi':
-        return '📶';
+        return Icons.wifi;  // Material icon for wifi
       case 'ip':
-        return '🌐';
+        return IconlyBold.graph;
       case 'alarm':
-        return '🔔';
+        return IconlyBold.notification;
       case 'lock':
-        return '🔒';
+        return IconlyBold.lock;
       case 'message':
-        return '💬';
+        return IconlyBold.message;
       case 'activity':
-        return '📝';
+        return IconlyBold.time_circle;
       case 'addface':
-        return '👤';
+        return IconlyBold.add_user;
       case 'faces':
-        return '👥';
+        return IconlyBold.user_3;
+      case 'findme':
+        return IconlyBold.volume_up;
+      case 'listusb':
+        return Icons.usb;  // Material icon for USB
+      case 'listnetworks':
+        return Icons.cell_tower;  // Material icon for networks
+      case 'listgeofences':
+        return IconlyBold.discovery;
+      case 'appusage':
+        return IconlyBold.category;
+      case 'generatereport':
+        return IconlyBold.document;
+      case 'backup':
+        return IconlyBold.upload;
+      case 'armmotion':
+        return IconlyBold.shield_done;
       default:
-        return '⚡';
+        return IconlyBold.star;
     }
   }
 
-  String get statusIcon {
+  IconData get statusIcon {
     switch (status) {
       case CommandStatus.pending:
-        return '⏳';
+        return IconlyBold.time_circle;
       case CommandStatus.executing:
-        return '⚙️';
+        return IconlyBold.swap;
       case CommandStatus.completed:
-        return '✅';
+        return IconlyBold.tick_square;
       case CommandStatus.failed:
-        return '❌';
+        return IconlyBold.close_square;
     }
   }
 
@@ -126,7 +145,7 @@ class CommandDefinition {
   final String command;
   final String name;
   final String description;
-  final String icon;
+  final IconData icon;
   final Map<String, dynamic>? defaultArgs;
 
   const CommandDefinition({
@@ -144,77 +163,77 @@ const List<CommandDefinition> availableCommands = [
     command: 'photo',
     name: 'Take Photo',
     description: 'Capture photo from camera',
-    icon: '📷',
+    icon: IconlyBold.camera,
     defaultArgs: {'count': 1},
   ),
   CommandDefinition(
     command: 'location',
     name: 'Get Location',
     description: 'Get current GPS location',
-    icon: '📍',
+    icon: IconlyBold.location,
   ),
   CommandDefinition(
     command: 'screenshot',
     name: 'Screenshot',
     description: 'Capture screen',
-    icon: '🖥️',
+    icon: IconlyBold.image,
   ),
   CommandDefinition(
     command: 'status',
     name: 'Device Status',
     description: 'Get full device status',
-    icon: '📊',
+    icon: IconlyBold.info_circle,
   ),
   CommandDefinition(
     command: 'battery',
     name: 'Battery',
     description: 'Get battery status',
-    icon: '🔋',
+    icon: Icons.battery_full,
   ),
   CommandDefinition(
     command: 'wifi',
     name: 'WiFi Info',
     description: 'Get WiFi network info',
-    icon: '📶',
+    icon: Icons.wifi,
   ),
   CommandDefinition(
     command: 'ip',
     name: 'IP Address',
     description: 'Get IP addresses',
-    icon: '🌐',
+    icon: IconlyBold.graph,
   ),
   CommandDefinition(
     command: 'audio',
     name: 'Record Audio',
     description: 'Record ambient audio',
-    icon: '🎙️',
+    icon: IconlyBold.voice,
     defaultArgs: {'duration': 10},
   ),
   CommandDefinition(
     command: 'alarm',
     name: 'Sound Alarm',
     description: 'Play alarm sound',
-    icon: '🔔',
+    icon: IconlyBold.notification,
     defaultArgs: {'duration': 30},
   ),
   CommandDefinition(
     command: 'lock',
     name: 'Lock Screen',
     description: 'Lock the device screen',
-    icon: '🔒',
+    icon: IconlyBold.lock,
   ),
   CommandDefinition(
     command: 'message',
     name: 'Show Message',
     description: 'Display message on screen',
-    icon: '💬',
+    icon: IconlyBold.message,
     defaultArgs: {'message': 'Alert from Login Monitor', 'title': 'Alert'},
   ),
   CommandDefinition(
     command: 'activity',
     name: 'Recent Activity',
     description: 'Get recent user activity',
-    icon: '📝',
+    icon: IconlyBold.time_circle,
   ),
 
   // New v3.0 Security Commands
@@ -222,52 +241,52 @@ const List<CommandDefinition> availableCommands = [
     command: 'findme',
     name: 'Find My Mac',
     description: 'Play alarm and track location',
-    icon: '🔊',
+    icon: IconlyBold.volume_up,
     defaultArgs: {'duration': 60},
   ),
   CommandDefinition(
     command: 'listusb',
     name: 'List USB',
     description: 'List connected USB devices',
-    icon: '🔌',
+    icon: Icons.usb,
   ),
   CommandDefinition(
     command: 'listnetworks',
     name: 'List Networks',
     description: 'List known WiFi networks',
-    icon: '📡',
+    icon: Icons.cell_tower,
   ),
   CommandDefinition(
     command: 'listgeofences',
     name: 'List Geofences',
     description: 'List configured geofences',
-    icon: '🗺️',
+    icon: IconlyBold.discovery,
   ),
   CommandDefinition(
     command: 'appusage',
     name: 'App Usage',
     description: 'Get app usage statistics',
-    icon: '📱',
+    icon: IconlyBold.category,
     defaultArgs: {'hours': 24},
   ),
   CommandDefinition(
     command: 'generatereport',
     name: 'Generate Report',
     description: 'Generate security report',
-    icon: '📄',
+    icon: IconlyBold.document,
     defaultArgs: {'type': 'daily'},
   ),
   CommandDefinition(
     command: 'backup',
     name: 'Backup Now',
     description: 'Create manual backup',
-    icon: '💾',
+    icon: IconlyBold.upload,
   ),
   CommandDefinition(
     command: 'armmotion',
     name: 'Arm Motion',
     description: 'Enable motion detection',
-    icon: '🚨',
+    icon: IconlyBold.shield_done,
     defaultArgs: {'enabled': true},
   ),
 ];

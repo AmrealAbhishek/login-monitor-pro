@@ -34,9 +34,10 @@ class CommandButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            Icon(
               command.icon,
-              style: const TextStyle(fontSize: 24),
+              size: 24,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 4),
             Text(
@@ -70,9 +71,10 @@ class CommandButton extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
-                  child: Text(
+                  child: Icon(
                     command.icon,
-                    style: const TextStyle(fontSize: 24),
+                    size: 24,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                 ),
               ),
