@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/supabase_service.dart';
+import 'services/alert_service.dart';
 import 'theme/cyber_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -42,7 +43,7 @@ class LoginMonitorApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => AppState(),
       child: MaterialApp(
-        title: 'Login Monitor PRO',
+        title: 'CyVigil',
         debugShowCheckedModeBanner: false,
         // Use Cyber Neon Theme (dark only)
         theme: CyberTheme.darkTheme,
@@ -80,17 +81,36 @@ class LoginMonitorApp extends StatelessWidget {
 class AppState extends ChangeNotifier {
   String? _selectedDeviceId;
   bool _isLoading = false;
+  final AlertService _alertService = AlertService();
 
   String? get selectedDeviceId => _selectedDeviceId;
   bool get isLoading => _isLoading;
+  AlertService get alertService => _alertService;
+
+  AppState() {
+    _alertService.initialize();
+  }
 
   void setSelectedDevice(String? deviceId) {
     _selectedDeviceId = deviceId;
     notifyListeners();
+
+    // Subscribe to real-time alerts for this device
+    if (deviceId != null) {
+      _alertService.subscribeToDevice(deviceId);
+    } else {
+      _alertService.unsubscribe();
+    }
   }
 
   void setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _alertService.dispose();
+    super.dispose();
   }
 }

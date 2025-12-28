@@ -387,15 +387,18 @@ class _EventsScreenState extends State<EventsScreen> {
                   Row(
                     children: [
                       if (event.username != null) ...[
-                        Icon(Icons.person, size: 12, color: CyberColors.textMuted),
+                        const Icon(Icons.person, size: 12, color: CyberColors.textMuted),
                         const SizedBox(width: 4),
-                        Text(
-                          event.username!,
-                          style: const TextStyle(color: CyberColors.textSecondary, fontSize: 12),
+                        Flexible(
+                          child: Text(
+                            event.username!,
+                            style: const TextStyle(color: CyberColors.textSecondary, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                       ],
-                      Icon(Icons.access_time, size: 12, color: CyberColors.textMuted),
+                      const Icon(Icons.access_time, size: 12, color: CyberColors.textMuted),
                       const SizedBox(width: 4),
                       Text(
                         _formatTime(event.timestamp),
