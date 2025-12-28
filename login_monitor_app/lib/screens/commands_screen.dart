@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,7 @@ import '../main.dart';
 import '../models/command.dart';
 import '../services/supabase_service.dart';
 import '../theme/cyber_theme.dart';
+import '../widgets/custom_toast.dart';
 
 DateTime toIST(DateTime utc) {
   return utc.add(const Duration(hours: 5, minutes: 30));
@@ -36,6 +38,7 @@ class _CommandsScreenState extends State<CommandsScreen> {
   String _searchQuery = '';
   String _selectedCategory = 'All';
   final _searchController = TextEditingController();
+  Timer? _autoRefreshTimer;
 
   final List<String> _categories = ['All', 'Info', 'Capture', 'Security', 'Control'];
 
@@ -59,10 +62,21 @@ class _CommandsScreenState extends State<CommandsScreen> {
   void initState() {
     super.initState();
     _loadCommandHistory();
+    _startAutoRefresh();
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted && _activeCommands.isNotEmpty) {
+        _loadCommandHistory();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _searchController.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -93,11 +107,11 @@ class _CommandsScreenState extends State<CommandsScreen> {
   Future<void> _sendCommand(CommandDefinition cmd, {Map<String, dynamic>? customArgs}) async {
     final deviceId = context.read<AppState>().selectedDeviceId;
     if (deviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No device selected'),
-          backgroundColor: CyberColors.alertRed,
-        ),
+      CustomToast.show(
+        context,
+        message: 'No device selected',
+        type: ToastType.error,
+        icon: Icons.devices_other,
       );
       return;
     }
@@ -109,27 +123,20 @@ class _CommandsScreenState extends State<CommandsScreen> {
         args: customArgs ?? cmd.defaultArgs,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(cmd.icon, color: CyberColors.pureWhite, size: 18),
-                const SizedBox(width: 8),
-                Text('${cmd.name} sent!'),
-              ],
-            ),
-            backgroundColor: CyberColors.successGreen,
-          ),
+        CustomToast.show(
+          context,
+          message: '${cmd.name} command sent',
+          type: ToastType.success,
+          icon: cmd.icon,
         );
         _loadCommandHistory();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: CyberColors.alertRed,
-          ),
+        CustomToast.show(
+          context,
+          message: 'Error: $e',
+          type: ToastType.error,
         );
       }
     }
@@ -145,19 +152,21 @@ class _CommandsScreenState extends State<CommandsScreen> {
         command: 'stop',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Stop command sent!'),
-            backgroundColor: CyberColors.successGreen,
-          ),
+        CustomToast.show(
+          context,
+          message: 'Stop command sent',
+          type: ToastType.warning,
+          icon: Icons.stop_circle,
         );
         await Future.delayed(const Duration(seconds: 2));
         _loadCommandHistory();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: CyberColors.alertRed),
+        CustomToast.show(
+          context,
+          message: 'Error: $e',
+          type: ToastType.error,
         );
       }
     }
@@ -887,70 +896,138 @@ class _CommandsScreenState extends State<CommandsScreen> {
       isScrollControlled: true,
       backgroundColor: CyberColors.darkBackground,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.6,
         minChildSize: 0.4,
         maxChildSize: 0.95,
         expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        builder: (context, scrollController) => Column(
+          children: [
+            // Drag indicator
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: CyberColors.textMuted.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Close button row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(cmd.commandIcon, color: CyberColors.primaryRed, size: 32),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          cmd.command.toUpperCase(),
-                          style: const TextStyle(
-                            color: CyberColors.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: CyberColors.surfaceColor,
+                          shape: BoxShape.circle,
                         ),
-                        Text(
-                          _formatTime(cmd.createdAt),
-                          style: const TextStyle(color: CyberColors.textSecondary, fontSize: 12),
-                        ),
-                      ],
+                        child: const Icon(Icons.close, color: CyberColors.textMuted, size: 20),
+                      ),
                     ),
                   ),
-                  _buildStatusBadge(cmd.status),
                 ],
               ),
-              const SizedBox(height: 24),
+            ),
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: CyberColors.primaryRed.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(cmd.commandIcon, color: CyberColors.primaryRed, size: 28),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cmd.command.toUpperCase(),
+                                style: const TextStyle(
+                                  color: CyberColors.textPrimary,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                _formatTime(cmd.createdAt),
+                                style: const TextStyle(color: CyberColors.textSecondary, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildStatusBadge(cmd.status),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-              if (cmd.status == CommandStatus.pending || cmd.status == CommandStatus.executing)
-                const Center(
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(color: CyberColors.primaryRed),
-                      SizedBox(height: 16),
-                      Text('Waiting for response...', style: TextStyle(color: CyberColors.textSecondary)),
+                    if (cmd.status == CommandStatus.pending || cmd.status == CommandStatus.executing)
+                      const Center(
+                        child: Column(
+                          children: [
+                            CircularProgressIndicator(color: CyberColors.primaryRed),
+                            SizedBox(height: 16),
+                            Text('Waiting for response...', style: TextStyle(color: CyberColors.textSecondary)),
+                          ],
+                        ),
+                      )
+                    else if (cmd.result != null)
+                      _buildResultContent(cmd)
+                    else if (cmd.resultUrl != null && cmd.command != 'audio')
+                      _buildImageResult(cmd)
+                    else
+                      Text(
+                        cmd.status == CommandStatus.completed ? 'Command completed' : 'Command failed',
+                        style: TextStyle(
+                          color: cmd.status == CommandStatus.completed ? CyberColors.successGreen : CyberColors.alertRed,
+                        ),
+                      ),
+
+                    // Done button at bottom for completed commands
+                    if (cmd.status == CommandStatus.completed || cmd.status == CommandStatus.failed) ...[
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: CyberColors.primaryRed,
+                            foregroundColor: CyberColors.pureWhite,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                      ),
                     ],
-                  ),
-                )
-              else if (cmd.result != null)
-                _buildResultContent(cmd)
-              else if (cmd.resultUrl != null && cmd.command != 'audio')
-                _buildImageResult(cmd)
-              else
-                Text(
-                  cmd.status == CommandStatus.completed ? 'Command completed' : 'Command failed',
-                  style: TextStyle(
-                    color: cmd.status == CommandStatus.completed ? CyberColors.successGreen : CyberColors.alertRed,
-                  ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1968,15 +2045,20 @@ class _CommandsScreenState extends State<CommandsScreen> {
         await Gal.putImage(tempPath);
         await file.delete();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Saved to Gallery!'), backgroundColor: CyberColors.successGreen),
+          CustomToast.show(
+            context,
+            message: 'Saved to Gallery',
+            type: ToastType.success,
+            icon: Icons.photo_library,
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: CyberColors.alertRed),
+        CustomToast.show(
+          context,
+          message: 'Failed to save: $e',
+          type: ToastType.error,
         );
       }
     }
@@ -1990,15 +2072,20 @@ class _CommandsScreenState extends State<CommandsScreen> {
         final path = '${directory.path}/$filename';
         await File(path).writeAsBytes(response.bodyBytes);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Audio saved: $filename'), backgroundColor: CyberColors.successGreen),
+          CustomToast.show(
+            context,
+            message: 'Audio saved: $filename',
+            type: ToastType.success,
+            icon: Icons.audio_file,
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: CyberColors.alertRed),
+        CustomToast.show(
+          context,
+          message: 'Failed to save: $e',
+          type: ToastType.error,
         );
       }
     }
@@ -2026,18 +2113,12 @@ class _CommandsScreenState extends State<CommandsScreen> {
       } else {
         // Show loading indicator
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: CyberColors.pureWhite)),
-                  SizedBox(width: 12),
-                  Text('Loading audio...'),
-                ],
-              ),
-              duration: Duration(seconds: 1),
-              backgroundColor: CyberColors.surfaceColor,
-            ),
+          CustomToast.show(
+            context,
+            message: 'Loading audio...',
+            type: ToastType.info,
+            icon: Icons.music_note,
+            duration: const Duration(seconds: 1),
           );
         }
 
@@ -2058,25 +2139,39 @@ class _CommandsScreenState extends State<CommandsScreen> {
     } catch (e) {
       setState(() => _isPlayingAudio = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Audio playback error: ${e.toString().split('\n').first}'),
-            backgroundColor: CyberColors.alertRed,
-            action: SnackBarAction(
-              label: 'Open URL',
-              textColor: CyberColors.pureWhite,
-              onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-            ),
-          ),
+        CustomToast.show(
+          context,
+          message: 'Audio playback error',
+          type: ToastType.error,
+          icon: Icons.error,
+          actionLabel: 'Open URL',
+          onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
         );
       }
     }
   }
 
   Future<void> _openMaps(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final uri = Uri.parse(url);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        CustomToast.show(
+          context,
+          message: 'Could not open maps. Try copying the link.',
+          type: ToastType.warning,
+          icon: Icons.map,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomToast.show(
+          context,
+          message: 'Error opening maps: $e',
+          type: ToastType.error,
+          icon: Icons.error,
+        );
+      }
     }
   }
 }

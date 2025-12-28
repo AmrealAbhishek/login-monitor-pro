@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +12,7 @@ import '../widgets/event_card.dart';
 import '../widgets/command_button.dart';
 import '../theme/cyber_theme.dart';
 import '../widgets/neon_card.dart';
+import '../widgets/custom_toast.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,7 +26,7 @@ DateTime _toIST(DateTime dt) {
   return dt.toUtc().add(const Duration(hours: 5, minutes: 30));
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Device> _devices = [];
   Device? _selectedDevice;
   List<MonitorEvent> _recentEvents = [];
@@ -32,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   int _totalEvents = 0;
   int _securityAlerts = 0;
+  Timer? _autoRefreshTimer;
 
   // User profile
   String? _displayName;
@@ -57,7 +60,56 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh device status when app comes to foreground
+      _refreshDeviceStatus();
+      _startAutoRefresh();
+    } else if (state == AppLifecycleState.paused) {
+      _autoRefreshTimer?.cancel();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    // Refresh device status every 30 seconds
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        _refreshDeviceStatus();
+      }
+    });
+  }
+
+  Future<void> _refreshDeviceStatus() async {
+    if (_selectedDevice == null) return;
+    try {
+      final devices = await SupabaseService.getDevices();
+      if (mounted && devices.isNotEmpty) {
+        final updated = devices.firstWhere(
+          (d) => d.id == _selectedDevice!.id,
+          orElse: () => _selectedDevice!,
+        );
+        setState(() {
+          _devices = devices;
+          _selectedDevice = updated;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing device status: $e');
+    }
   }
 
   Future<void> _loadData() async {
@@ -104,8 +156,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading devices: $e')),
+        CustomToast.show(
+          context,
+          message: 'Error loading devices',
+          type: ToastType.error,
         );
       }
     }
@@ -161,20 +215,19 @@ class _HomeScreenState extends State<HomeScreen> {
         args: cmd.defaultArgs,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${cmd.name} command sent!'),
-            backgroundColor: CyberColors.successGreen,
-          ),
+        CustomToast.show(
+          context,
+          message: '${cmd.name} command sent',
+          type: ToastType.success,
+          icon: cmd.icon,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: CyberColors.alertRed,
-          ),
+        CustomToast.show(
+          context,
+          message: 'Error: $e',
+          type: ToastType.error,
         );
       }
     }
