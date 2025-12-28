@@ -32,9 +32,8 @@ class FCMService {
     if (_isInitialized) return;
 
     try {
-      // Initialize Firebase
-      await Firebase.initializeApp();
-      print('[FCM] Firebase initialized');
+      // Firebase is already initialized in main.dart
+      print('[FCM] Starting FCM initialization...');
 
       // Initialize local notifications for foreground
       await _initLocalNotifications();
@@ -145,22 +144,16 @@ class FCMService {
   /// Save FCM token to Supabase
   Future<void> _saveTokenToSupabase(String token) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedToken = prefs.getString('fcm_token');
-
-      // Only update if token changed
-      if (savedToken == token) {
-        print('[FCM] Token unchanged, skipping save');
-        return;
-      }
-
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) {
         print('[FCM] No user logged in, cannot save token');
         return;
       }
 
-      // Upsert token to Supabase
+      print('[FCM] Saving token for user: $userId');
+      print('[FCM] Token: ${token.substring(0, 20)}...');
+
+      // Upsert token to Supabase (always update to handle reinstalls)
       await Supabase.instance.client.from('fcm_tokens').upsert({
         'user_id': userId,
         'token': token,
@@ -168,13 +161,17 @@ class FCMService {
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'user_id');
 
-      // Save locally
+      // Save locally for reference
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('fcm_token', token);
-      print('[FCM] Token saved to Supabase');
+      print('[FCM] ✅ Token saved to Supabase successfully');
     } catch (e) {
-      print('[FCM] Error saving token: $e');
+      print('[FCM] ❌ Error saving token: $e');
     }
   }
+
+  // Callback for showing in-app alert
+  static Function(String title, String body)? onForegroundMessage;
 
   /// Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
@@ -182,7 +179,14 @@ class FCMService {
     print('[FCM] Title: ${message.notification?.title}');
     print('[FCM] Body: ${message.notification?.body}');
     print('[FCM] Data: ${message.data}');
+
+    // Show local notification
     _showForegroundNotification(message);
+
+    // Also trigger callback for in-app UI
+    final title = message.notification?.title ?? message.data['title'] ?? 'Alert';
+    final body = message.notification?.body ?? message.data['body'] ?? '';
+    onForegroundMessage?.call(title, body);
   }
 
   /// Show notification when app is in foreground
@@ -204,21 +208,15 @@ class FCMService {
         body,
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'cyvigil_fcm',
-            'CyVigil Alerts',
-            channelDescription: 'Push notifications for Mac security events',
+            'cyvigil_high',
+            'CyVigil High Priority',
+            channelDescription: 'High priority alerts',
             importance: Importance.max,
             priority: Priority.max,
-            icon: '@mipmap/ic_launcher',
             playSound: true,
-            enableVibration: true,
             sound: RawResourceAndroidNotificationSound('alert_sound'),
-            fullScreenIntent: true,
-            showWhen: true,
-            enableLights: true,
           ),
         ),
-        payload: jsonEncode(message.data),
       );
       print('[FCM] ✅ Foreground notification shown with id: $id');
     } catch (e, stack) {
@@ -258,6 +256,17 @@ class FCMService {
         ),
         payload: jsonEncode(message.data),
       );
+    }
+  }
+
+  /// Re-save FCM token after user logs in
+  Future<void> saveTokenAfterLogin() async {
+    if (_fcmToken != null) {
+      print('[FCM] Saving token after login...');
+      await _saveTokenToSupabase(_fcmToken!);
+    } else {
+      // Try to get token again
+      await _getAndSaveToken();
     }
   }
 

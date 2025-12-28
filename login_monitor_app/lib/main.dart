@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/supabase_service.dart';
 import 'services/alert_service.dart';
 import 'services/fcm_service.dart';
@@ -21,6 +23,10 @@ import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase FIRST (required for FCM)
+  await Firebase.initializeApp();
+  print('[Main] Firebase initialized');
 
   // Set system UI overlay style for immersive cyber theme
   SystemChrome.setSystemUIOverlayStyle(
