@@ -213,8 +213,6 @@ class FCMService {
             channelDescription: 'High priority alerts',
             importance: Importance.max,
             priority: Priority.max,
-            playSound: true,
-            sound: RawResourceAndroidNotificationSound('alert_sound'),
           ),
         ),
       );
