@@ -16,12 +16,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} antialiased`}>
-        <div className="flex min-h-screen bg-gray-100">
+    <html lang="en" className="dark">
+      <body className={`${inter.className} antialiased bg-black`}>
+        <div className="flex min-h-screen">
+          {/* Fixed Sidebar */}
           <Sidebar />
-          <main className="flex-1 p-8 overflow-auto">
-            {children}
+          {/* Main content with left margin to account for fixed sidebar */}
+          <main className="flex-1 ml-64 min-h-screen bg-black">
+            <div className="p-8">
+              {children}
+            </div>
           </main>
         </div>
       </body>

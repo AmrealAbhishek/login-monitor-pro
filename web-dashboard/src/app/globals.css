@@ -1,8 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* CyVigil Dark Cybersecurity Theme - matching Flutter app */
+  --cy-bg-primary: #000000;
+  --cy-bg-secondary: #111111;
+  --cy-bg-card: #1A1A1A;
+  --cy-bg-surface: #222222;
+
+  --cy-red-primary: #FF0000;
+  --cy-red-light: #FF4444;
+  --cy-red-dark: #CC0000;
+  --cy-red-glow: rgba(255, 0, 0, 0.3);
+
+  --cy-text-primary: #FFFFFF;
+  --cy-text-secondary: #AAAAAA;
+  --cy-text-muted: #666666;
+
+  --cy-border: #333333;
+  --cy-border-subtle: #2A2A2A;
+
+  --cy-success: #00CC66;
+  --cy-warning: #FF9900;
+  --cy-info: #3399FF;
+  --cy-error: #FF0000;
+
+  --background: #000000;
+  --foreground: #FFFFFF;
 }
 
 @theme inline {
@@ -12,15 +35,153 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: var(--cy-bg-primary);
+  color: var(--cy-text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--cy-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cy-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cy-text-muted);
+}
+
+/* Neon glow effect for cards */
+.neon-card {
+  background: var(--cy-bg-card);
+  border: 1px solid var(--cy-border);
+  border-radius: 16px;
+  box-shadow:
+    0 0 20px rgba(255, 0, 0, 0.1),
+    inset 0 0 20px rgba(255, 0, 0, 0.02);
+}
+
+.neon-card:hover {
+  border-color: var(--cy-red-primary);
+  box-shadow:
+    0 0 30px rgba(255, 0, 0, 0.2),
+    inset 0 0 30px rgba(255, 0, 0, 0.05);
+}
+
+.neon-card-success {
+  border-color: var(--cy-success);
+  box-shadow: 0 0 20px rgba(0, 204, 102, 0.15);
+}
+
+.neon-card-warning {
+  border-color: var(--cy-warning);
+  box-shadow: 0 0 20px rgba(255, 153, 0, 0.15);
+}
+
+/* Glow button */
+.glow-btn {
+  background: var(--cy-red-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+}
+
+.glow-btn:hover {
+  background: var(--cy-red-light);
+  box-shadow: 0 0 25px rgba(255, 0, 0, 0.5);
+  transform: translateY(-1px);
+}
+
+.glow-btn:active {
+  transform: scale(0.98);
+}
+
+.glow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Pulse animation for online indicators */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 204, 102, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(0, 204, 102, 0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.pulse-online {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Status badges */
+.status-online {
+  background: rgba(0, 204, 102, 0.2);
+  color: var(--cy-success);
+  border: 1px solid var(--cy-success);
+}
+
+.status-offline {
+  background: rgba(102, 102, 102, 0.2);
+  color: var(--cy-text-muted);
+  border: 1px solid var(--cy-text-muted);
+}
+
+.status-alert {
+  background: rgba(255, 0, 0, 0.2);
+  color: var(--cy-red-primary);
+  border: 1px solid var(--cy-red-primary);
+}
+
+/* Input fields dark theme */
+input, textarea, select {
+  background: var(--cy-bg-surface) !important;
+  border: 1px solid var(--cy-border) !important;
+  color: var(--cy-text-primary) !important;
+  border-radius: 12px;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--cy-red-primary) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.2);
+}
+
+input::placeholder {
+  color: var(--cy-text-muted);
+}
+
+/* Table dark theme */
+table {
+  background: var(--cy-bg-card);
+}
+
+th {
+  background: var(--cy-bg-secondary);
+  color: var(--cy-text-secondary);
+  border-bottom: 1px solid var(--cy-border);
+}
+
+td {
+  border-bottom: 1px solid var(--cy-border-subtle);
+}
+
+tr:hover td {
+  background: var(--cy-bg-surface);
 }

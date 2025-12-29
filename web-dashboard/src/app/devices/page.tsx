@@ -26,18 +26,20 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Clock,
+  Activity,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const COMMANDS = [
-  { id: 'photo', label: 'Take Photo', icon: Camera, description: 'Capture a photo from the camera' },
-  { id: 'screenshot', label: 'Screenshot', icon: Monitor, description: 'Take a screenshot' },
-  { id: 'location', label: 'Get Location', icon: MapPin, description: 'Get current GPS location' },
-  { id: 'battery', label: 'Battery Status', icon: Battery, description: 'Check battery level' },
-  { id: 'wifi', label: 'WiFi Info', icon: Wifi, description: 'Get WiFi network info' },
-  { id: 'lock', label: 'Lock Device', icon: Lock, description: 'Lock the screen' },
-  { id: 'alarm', label: 'Play Alarm', icon: Volume2, description: 'Play alarm sound' },
-  { id: 'findme', label: 'Find My Mac', icon: Smartphone, description: 'Play alarm and stream location' },
+  { id: 'photo', label: 'Photo', icon: Camera, description: 'Capture photo' },
+  { id: 'screenshot', label: 'Screenshot', icon: Monitor, description: 'Take screenshot' },
+  { id: 'location', label: 'Location', icon: MapPin, description: 'Get GPS location' },
+  { id: 'battery', label: 'Battery', icon: Battery, description: 'Check battery' },
+  { id: 'wifi', label: 'WiFi', icon: Wifi, description: 'Network info' },
+  { id: 'lock', label: 'Lock', icon: Lock, description: 'Lock screen' },
+  { id: 'alarm', label: 'Alarm', icon: Volume2, description: 'Play alarm' },
+  { id: 'findme', label: 'Find Mac', icon: Smartphone, description: 'Find device' },
 ];
 
 interface BulkCommandResult {
@@ -72,8 +74,6 @@ export default function DevicesPage() {
 
   useEffect(() => {
     fetchDevices();
-
-    // Auto-refresh device status every 30 seconds
     const interval = setInterval(fetchDevices, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -113,9 +113,19 @@ export default function DevicesPage() {
       .order('last_seen', { ascending: false });
 
     if (data) {
-      setDevices(data);
-      if (data.length > 0 && !selectedDevice) {
-        setSelectedDevice(data[0]);
+      // Deduplicate by hostname - keep only the most recent device per hostname
+      const deviceMap = new Map<string, Device>();
+      for (const device of data) {
+        const key = device.hostname;
+        if (!deviceMap.has(key) || new Date(device.last_seen) > new Date(deviceMap.get(key)!.last_seen)) {
+          deviceMap.set(key, device);
+        }
+      }
+      const uniqueDevices = Array.from(deviceMap.values());
+
+      setDevices(uniqueDevices);
+      if (uniqueDevices.length > 0 && !selectedDevice) {
+        setSelectedDevice(uniqueDevices[0]);
       }
     }
     setLoading(false);
@@ -158,15 +168,11 @@ export default function DevicesPage() {
   async function deleteDevice(device: Device) {
     setDeleting(true);
     try {
-      // Delete related commands first
       await supabase.from('commands').delete().eq('device_id', device.id);
-      // Delete related events
       await supabase.from('events').delete().eq('device_id', device.id);
-      // Delete the device
       const { error } = await supabase.from('devices').delete().eq('id', device.id);
       if (error) throw error;
 
-      // Update local state
       setDevices(prev => prev.filter(d => d.id !== device.id));
       if (selectedDevice?.id === device.id) {
         setSelectedDevice(null);
@@ -186,7 +192,6 @@ export default function DevicesPage() {
     setBulkCommand(commandName);
     setBulkExecuting(true);
 
-    // Initialize results
     const initialResults: BulkCommandResult[] = Array.from(selectedDeviceIds).map(deviceId => {
       const device = devices.find(d => d.id === deviceId);
       return {
@@ -197,30 +202,7 @@ export default function DevicesPage() {
     });
     setBulkResults(initialResults);
 
-    // Create a bulk command job record
-    const { data: jobData, error: jobError } = await supabase
-      .from('bulk_command_jobs')
-      .insert({
-        command: commandName,
-        target_type: 'selected',
-        target_ids: Array.from(selectedDeviceIds),
-        status: 'executing',
-        total_devices: selectedDeviceIds.size,
-        completed_devices: 0,
-        failed_devices: 0,
-      })
-      .select()
-      .single();
-
-    if (jobError) {
-      console.error('Error creating bulk job:', jobError);
-    }
-
-    // Send command to each device
     for (const deviceId of selectedDeviceIds) {
-      const device = devices.find(d => d.id === deviceId);
-
-      // Update status to sending
       setBulkResults(prev => prev.map(r =>
         r.deviceId === deviceId ? { ...r, status: 'sending' as const } : r
       ));
@@ -247,22 +229,6 @@ export default function DevicesPage() {
           } : r
         ));
       }
-    }
-
-    // Update job status
-    if (jobData) {
-      const sentCount = initialResults.filter(r => r.status !== 'error').length;
-      const failedCount = initialResults.filter(r => r.status === 'error').length;
-
-      await supabase
-        .from('bulk_command_jobs')
-        .update({
-          status: failedCount > 0 ? 'partial' : 'completed',
-          completed_devices: sentCount,
-          failed_devices: failedCount,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', jobData.id);
     }
 
     setBulkExecuting(false);
@@ -302,39 +268,46 @@ export default function DevicesPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-500/20 text-green-400 border-green-500/50';
       case 'executing':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
       case 'failed':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-500/20 text-red-400 border-red-500/50';
       default:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
+          <p className="text-[#666]">Loading devices...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Devices</h1>
-          <p className="text-gray-600">
-            {devices.length} devices ({onlineDevices.length} online, {offlineDevices.length} offline)
+          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+            <Monitor className="w-7 h-7 text-red-500" />
+            Devices
+          </h1>
+          <p className="text-[#666] mt-1">
+            {devices.length} devices • <span className="text-green-400">{onlineDevices.length} online</span> • <span className="text-[#666]">{offlineDevices.length} offline</span>
             {bulkMode && selectedDeviceIds.size > 0 && (
-              <span className="ml-2 text-red-600 font-medium">
+              <span className="ml-2 text-red-500 font-medium">
                 • {selectedDeviceIds.size} selected
               </span>
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => {
               setBulkMode(!bulkMode);
@@ -343,18 +316,18 @@ export default function DevicesPage() {
                 setShowBulkPanel(false);
               }
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all duration-200 ${
               bulkMode
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
+                : 'bg-[#1A1A1A] text-[#AAA] border border-[#333] hover:border-red-500/50 hover:text-white'
             }`}
           >
             <Users className="w-4 h-4" />
-            {bulkMode ? 'Exit Bulk Mode' : 'Bulk Commands'}
+            {bulkMode ? 'Exit Bulk' : 'Bulk Commands'}
           </button>
           <button
             onClick={fetchDevices}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A1A] text-[#AAA] border border-[#333] hover:border-red-500/50 hover:text-white rounded-xl font-medium transition-all duration-200"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -364,41 +337,41 @@ export default function DevicesPage() {
 
       {/* Bulk Selection Toolbar */}
       {bulkMode && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
+        <div className="neon-card p-4 flex items-center justify-between border-red-500/30">
           <div className="flex items-center gap-4">
             <button
               onClick={selectAllDevices}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 px-4 py-2 bg-[#222] border border-[#333] rounded-lg hover:border-red-500/50 transition-colors"
             >
               {selectedDeviceIds.size === devices.length ? (
-                <CheckSquare className="w-4 h-4 text-red-600" />
+                <CheckSquare className="w-4 h-4 text-red-500" />
               ) : (
-                <Square className="w-4 h-4" />
+                <Square className="w-4 h-4 text-[#666]" />
               )}
-              Select All
+              <span className="text-[#AAA]">Select All</span>
             </button>
             <button
               onClick={selectOnlineDevices}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 px-4 py-2 bg-[#222] border border-[#333] rounded-lg hover:border-green-500/50 transition-colors"
             >
-              <div className="w-3 h-3 bg-green-500 rounded-full" />
-              Select Online ({onlineDevices.length})
+              <div className="w-3 h-3 bg-green-500 rounded-full pulse-online" />
+              <span className="text-[#AAA]">Online ({onlineDevices.length})</span>
             </button>
             <button
               onClick={() => setSelectedDeviceIds(new Set())}
-              className="px-3 py-1.5 text-gray-600 hover:text-gray-900"
+              className="px-4 py-2 text-[#666] hover:text-white transition-colors"
             >
-              Clear Selection
+              Clear
             </button>
           </div>
 
           {selectedDeviceIds.size > 0 && (
             <button
               onClick={() => setShowBulkPanel(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              className="glow-btn flex items-center gap-2"
             >
               <Zap className="w-4 h-4" />
-              Send Command to {selectedDeviceIds.size} Devices
+              Send to {selectedDeviceIds.size} Devices
             </button>
           )}
         </div>
@@ -406,114 +379,116 @@ export default function DevicesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Device List */}
-        <div className="bg-white rounded-xl shadow-sm border">
+        <div className="neon-card overflow-hidden">
           {/* Online Devices Section */}
-          <div className="p-4 border-b bg-green-50">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              <h2 className="font-semibold text-green-800">Online ({onlineDevices.length})</h2>
+          <div className="p-4 border-b border-[#222] bg-gradient-to-r from-green-500/10 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full pulse-online" />
+              <h2 className="font-semibold text-green-400">Online ({onlineDevices.length})</h2>
             </div>
           </div>
-          <div className="divide-y max-h-[300px] overflow-auto">
+          <div className="divide-y divide-[#222] max-h-[300px] overflow-auto">
             {onlineDevices.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                No devices online
+              <div className="p-8 text-center">
+                <Monitor className="w-10 h-10 text-[#333] mx-auto mb-3" />
+                <p className="text-[#666]">No devices online</p>
               </div>
             ) : (
               onlineDevices.map((device) => (
                 <div
                   key={device.id}
-                  className={`flex items-center ${
-                    !bulkMode && selectedDevice?.id === device.id ? 'bg-red-50 border-l-4 border-red-500' : ''
+                  className={`flex items-center transition-all duration-200 ${
+                    !bulkMode && selectedDevice?.id === device.id
+                      ? 'bg-red-500/10 border-l-2 border-red-500'
+                      : 'hover:bg-[#111]'
                   }`}
                 >
                   {bulkMode && (
                     <button
                       onClick={() => toggleDeviceSelection(device.id)}
-                      className="p-4 hover:bg-gray-50"
+                      className="p-4 hover:bg-[#111]"
                     >
                       {selectedDeviceIds.has(device.id) ? (
-                        <CheckSquare className="w-5 h-5 text-red-600" />
+                        <CheckSquare className="w-5 h-5 text-red-500" />
                       ) : (
-                        <Square className="w-5 h-5 text-gray-400" />
+                        <Square className="w-5 h-5 text-[#444]" />
                       )}
                     </button>
                   )}
                   <button
                     onClick={() => !bulkMode && setSelectedDevice(device)}
-                    className={`flex-1 p-4 text-left hover:bg-gray-50 transition-colors ${
-                      bulkMode ? '' : 'cursor-pointer'
-                    }`}
+                    className="flex-1 p-4 text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-green-500 rounded-full" />
+                      <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-green-400" />
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">
-                          {device.hostname}
-                        </p>
-                        <p className="text-sm text-gray-500">{device.os_version}</p>
+                        <p className="font-medium text-white truncate">{device.hostname}</p>
+                        <p className="text-xs text-[#666]">{device.os_version}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-green-400">
+                        <Activity className="w-3 h-3" />
+                        <span>Live</span>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
-                    </p>
                   </button>
                 </div>
               ))
             )}
           </div>
 
-          {/* Offline Devices Section (Collapsible) */}
+          {/* Offline Devices Section */}
           {offlineDevices.length > 0 && (
             <>
               <button
                 onClick={() => setOfflineCollapsed(!offlineCollapsed)}
-                className="w-full p-4 border-t bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                className="w-full p-4 border-t border-[#222] bg-[#0D0D0D] hover:bg-[#111] transition-colors flex items-center justify-between"
               >
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gray-400 rounded-full" />
-                  <h2 className="font-semibold text-gray-600">Offline ({offlineDevices.length})</h2>
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-[#444] rounded-full" />
+                  <h2 className="font-semibold text-[#666]">Offline ({offlineDevices.length})</h2>
                 </div>
                 {offlineCollapsed ? (
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                  <ChevronRight className="w-5 h-5 text-[#444]" />
                 ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                  <ChevronDown className="w-5 h-5 text-[#444]" />
                 )}
               </button>
               {!offlineCollapsed && (
-                <div className="divide-y max-h-[200px] overflow-auto bg-gray-50/50">
+                <div className="divide-y divide-[#1A1A1A] max-h-[200px] overflow-auto bg-[#0A0A0A]">
                   {offlineDevices.map((device) => (
                     <div
                       key={device.id}
-                      className={`flex items-center opacity-60 ${
-                        !bulkMode && selectedDevice?.id === device.id ? 'bg-red-50 border-l-4 border-red-500 opacity-100' : ''
+                      className={`flex items-center opacity-50 hover:opacity-100 transition-all duration-200 ${
+                        !bulkMode && selectedDevice?.id === device.id
+                          ? 'bg-red-500/10 border-l-2 border-red-500 opacity-100'
+                          : ''
                       }`}
                     >
                       {bulkMode && (
                         <button
                           onClick={() => toggleDeviceSelection(device.id)}
-                          className="p-4 hover:bg-gray-100"
+                          className="p-4 hover:bg-[#111]"
                         >
                           {selectedDeviceIds.has(device.id) ? (
-                            <CheckSquare className="w-5 h-5 text-red-600" />
+                            <CheckSquare className="w-5 h-5 text-red-500" />
                           ) : (
-                            <Square className="w-5 h-5 text-gray-400" />
+                            <Square className="w-5 h-5 text-[#333]" />
                           )}
                         </button>
                       )}
                       <button
                         onClick={() => !bulkMode && setSelectedDevice(device)}
-                        className={`flex-1 p-4 text-left hover:bg-gray-100 transition-colors ${
-                          bulkMode ? '' : 'cursor-pointer'
-                        }`}
+                        className="flex-1 p-4 text-left"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 bg-gray-400 rounded-full" />
+                          <div className="w-10 h-10 bg-[#1A1A1A] rounded-xl flex items-center justify-center">
+                            <Monitor className="w-5 h-5 text-[#444]" />
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-700 truncate">
-                              {device.hostname}
-                            </p>
-                            <p className="text-sm text-gray-500">{device.os_version}</p>
+                            <p className="font-medium text-[#888] truncate">{device.hostname}</p>
+                            <p className="text-xs text-[#555]">{device.os_version}</p>
                           </div>
                           <button
                             onClick={(e) => {
@@ -521,14 +496,15 @@ export default function DevicesPage() {
                               setDeviceToDelete(device);
                               setShowDeleteConfirm(true);
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="p-2 text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Remove device"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                        <p className="text-xs text-gray-400 mt-2">
-                          Last seen {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
+                        <p className="text-xs text-[#444] mt-2 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
                         </p>
                       </button>
                     </div>
@@ -543,29 +519,36 @@ export default function DevicesPage() {
         <div className="lg:col-span-2 space-y-6">
           {selectedDevice && !bulkMode ? (
             <>
-              {/* Device Info */}
-              <div className="bg-white rounded-xl shadow-sm border p-6">
+              {/* Device Info Card */}
+              <div className="neon-card p-6">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {selectedDevice.hostname}
-                    </h2>
-                    <p className="text-gray-500">{selectedDevice.os_version}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
                       isOnline(selectedDevice)
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-600'
+                        ? 'bg-green-500/20 shadow-lg shadow-green-500/20'
+                        : 'bg-[#1A1A1A]'
+                    }`}>
+                      <Monitor className={`w-7 h-7 ${isOnline(selectedDevice) ? 'text-green-400' : 'text-[#444]'}`} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">{selectedDevice.hostname}</h2>
+                      <p className="text-[#666]">{selectedDevice.os_version}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                      isOnline(selectedDevice)
+                        ? 'status-online'
+                        : 'status-offline'
                     }`}>
                       {isOnline(selectedDevice) ? 'Online' : 'Offline'}
-                    </div>
+                    </span>
                     <button
                       onClick={() => {
                         setDeviceToDelete(selectedDevice);
                         setShowDeleteConfirm(true);
                       }}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
                       title="Remove device"
                     >
                       <Trash2 className="w-5 h-5" />
@@ -573,13 +556,13 @@ export default function DevicesPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mt-6">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-500">Hostname</p>
-                    <p className="font-medium">{selectedDevice.hostname}</p>
+                  <div className="p-4 bg-[#111] rounded-xl border border-[#222]">
+                    <p className="text-xs text-[#666] uppercase tracking-wider mb-1">Hostname</p>
+                    <p className="font-medium text-white">{selectedDevice.hostname}</p>
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-500">Last Seen</p>
-                    <p className="font-medium">
+                  <div className="p-4 bg-[#111] rounded-xl border border-[#222]">
+                    <p className="text-xs text-[#666] uppercase tracking-wider mb-1">Last Seen</p>
+                    <p className="font-medium text-white">
                       {formatDistanceToNow(new Date(selectedDevice.last_seen), { addSuffix: true })}
                     </p>
                   </div>
@@ -587,29 +570,39 @@ export default function DevicesPage() {
               </div>
 
               {/* Quick Commands */}
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h3 className="font-semibold mb-4">Quick Commands</h3>
+              <div className="neon-card p-6">
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-red-500" />
+                  Quick Commands
+                </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {COMMANDS.map((cmd) => {
                     const Icon = cmd.icon;
                     const isSending = sendingCommand === cmd.id;
+                    const disabled = isSending || !isOnline(selectedDevice);
 
                     return (
                       <button
                         key={cmd.id}
                         onClick={() => sendCommand(cmd.id)}
-                        disabled={isSending || !isOnline(selectedDevice)}
-                        className={`p-4 rounded-lg border text-left transition-all ${
+                        disabled={disabled}
+                        className={`p-4 rounded-xl border text-left transition-all duration-200 group ${
                           isSending
-                            ? 'bg-red-50 border-red-200'
-                            : isOnline(selectedDevice)
-                            ? 'hover:bg-gray-50 hover:border-gray-300'
-                            : 'opacity-50 cursor-not-allowed'
+                            ? 'bg-red-500/10 border-red-500/50'
+                            : disabled
+                            ? 'bg-[#0D0D0D] border-[#1A1A1A] opacity-40 cursor-not-allowed'
+                            : 'bg-[#111] border-[#222] hover:border-red-500/50 hover:bg-[#1A1A1A]'
                         }`}
                       >
-                        <Icon className={`w-5 h-5 mb-2 ${isSending ? 'text-red-500 animate-pulse' : 'text-gray-600'}`} />
-                        <p className="font-medium text-sm">{cmd.label}</p>
-                        <p className="text-xs text-gray-500 mt-1">{cmd.description}</p>
+                        <Icon className={`w-6 h-6 mb-2 transition-colors ${
+                          isSending
+                            ? 'text-red-500 animate-pulse'
+                            : disabled
+                            ? 'text-[#333]'
+                            : 'text-[#666] group-hover:text-red-500'
+                        }`} />
+                        <p className="font-medium text-sm text-white">{cmd.label}</p>
+                        <p className="text-xs text-[#666] mt-1">{cmd.description}</p>
                       </button>
                     );
                   })}
@@ -617,34 +610,40 @@ export default function DevicesPage() {
               </div>
 
               {/* Recent Commands */}
-              <div className="bg-white rounded-xl shadow-sm border">
-                <div className="p-4 border-b">
-                  <h3 className="font-semibold">Recent Commands</h3>
+              <div className="neon-card overflow-hidden">
+                <div className="p-4 border-b border-[#222]">
+                  <h3 className="font-semibold text-white flex items-center gap-2">
+                    <Send className="w-5 h-5 text-red-500" />
+                    Recent Commands
+                  </h3>
                 </div>
-                <div className="divide-y max-h-80 overflow-auto">
+                <div className="divide-y divide-[#1A1A1A] max-h-80 overflow-auto">
                   {recentCommands.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">
-                      No commands sent yet
+                    <div className="p-8 text-center">
+                      <Send className="w-10 h-10 text-[#222] mx-auto mb-3" />
+                      <p className="text-[#666]">No commands sent yet</p>
                     </div>
                   ) : (
                     recentCommands.map((cmd) => (
-                      <div key={cmd.id} className="p-4">
+                      <div key={cmd.id} className="p-4 hover:bg-[#0D0D0D] transition-colors">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Send className="w-4 h-4 text-gray-400" />
+                            <div className="w-8 h-8 bg-[#1A1A1A] rounded-lg flex items-center justify-center">
+                              <Send className="w-4 h-4 text-[#666]" />
+                            </div>
                             <div>
-                              <p className="font-medium">{cmd.command}</p>
-                              <p className="text-xs text-gray-500">
+                              <p className="font-medium text-white capitalize">{cmd.command}</p>
+                              <p className="text-xs text-[#666]">
                                 {formatDistanceToNow(new Date(cmd.created_at), { addSuffix: true })}
                               </p>
                             </div>
                           </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(cmd.status)}`}>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(cmd.status)}`}>
                             {cmd.status}
                           </span>
                         </div>
                         {cmd.result && Object.keys(cmd.result).length > 0 && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono overflow-auto">
+                          <div className="mt-3 p-3 bg-[#0D0D0D] rounded-lg text-xs font-mono text-[#888] overflow-auto">
                             {JSON.stringify(cmd.result, null, 2)}
                           </div>
                         )}
@@ -653,9 +652,9 @@ export default function DevicesPage() {
                             href={cmd.result_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-2 inline-block text-sm text-red-600 hover:underline"
+                            className="mt-2 inline-block text-sm text-red-500 hover:text-red-400 transition-colors"
                           >
-                            View Result
+                            View Result →
                           </a>
                         )}
                       </div>
@@ -665,22 +664,26 @@ export default function DevicesPage() {
               </div>
             </>
           ) : bulkMode ? (
-            <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-              <Users className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Bulk Command Mode</h3>
-              <p className="text-gray-500 mb-6">
+            <div className="neon-card p-12 text-center">
+              <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Bulk Command Mode</h3>
+              <p className="text-[#666] mb-6 max-w-md mx-auto">
                 Select devices from the list, then click &quot;Send Command&quot; to execute commands on multiple devices at once.
               </p>
               {selectedDeviceIds.size > 0 && (
-                <p className="text-red-600 font-medium">
+                <p className="text-red-500 font-medium">
                   {selectedDeviceIds.size} device{selectedDeviceIds.size !== 1 ? 's' : ''} selected
                 </p>
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-              <Monitor className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Select a device to view details and send commands</p>
+            <div className="neon-card p-12 text-center">
+              <div className="w-16 h-16 bg-[#1A1A1A] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Monitor className="w-8 h-8 text-[#333]" />
+              </div>
+              <p className="text-[#666]">Select a device to view details and send commands</p>
             </div>
           )}
         </div>
@@ -688,12 +691,12 @@ export default function DevicesPage() {
 
       {/* Bulk Command Modal */}
       {showBulkPanel && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl m-4 max-h-[90vh] overflow-auto">
-            <div className="p-6 border-b flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="neon-card w-full max-w-2xl m-4 max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-[#222] flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Send Bulk Command</h2>
-                <p className="text-gray-500">
+                <h2 className="text-xl font-bold text-white">Send Bulk Command</h2>
+                <p className="text-[#666]">
                   Sending to {selectedDeviceIds.size} device{selectedDeviceIds.size !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -703,7 +706,7 @@ export default function DevicesPage() {
                   setBulkCommand(null);
                   setBulkResults([]);
                 }}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                className="p-2 text-[#666] hover:text-white hover:bg-[#222] rounded-xl transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -711,7 +714,7 @@ export default function DevicesPage() {
 
             {!bulkCommand ? (
               <div className="p-6">
-                <p className="text-sm text-gray-600 mb-4">Select a command to execute:</p>
+                <p className="text-sm text-[#666] mb-4">Select a command to execute:</p>
                 <div className="grid grid-cols-2 gap-3">
                   {COMMANDS.map((cmd) => {
                     const Icon = cmd.icon;
@@ -719,11 +722,11 @@ export default function DevicesPage() {
                       <button
                         key={cmd.id}
                         onClick={() => executeBulkCommand(cmd.id)}
-                        className="p-4 rounded-lg border text-left hover:bg-gray-50 hover:border-gray-300 transition-all"
+                        className="p-4 rounded-xl border border-[#222] bg-[#111] text-left hover:border-red-500/50 hover:bg-[#1A1A1A] transition-all duration-200 group"
                       >
-                        <Icon className="w-5 h-5 mb-2 text-red-500" />
-                        <p className="font-medium text-sm">{cmd.label}</p>
-                        <p className="text-xs text-gray-500 mt-1">{cmd.description}</p>
+                        <Icon className="w-6 h-6 mb-2 text-[#666] group-hover:text-red-500 transition-colors" />
+                        <p className="font-medium text-sm text-white">{cmd.label}</p>
+                        <p className="text-xs text-[#666] mt-1">{cmd.description}</p>
                       </button>
                     );
                   })}
@@ -732,14 +735,14 @@ export default function DevicesPage() {
             ) : (
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <Play className="w-5 h-5 text-red-600" />
+                  <div className="p-3 bg-red-500/20 rounded-xl">
+                    <Play className="w-5 h-5 text-red-500" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-white">
                       Executing: {COMMANDS.find(c => c.id === bulkCommand)?.label}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-[#666]">
                       {bulkExecuting ? 'Sending commands...' : 'Complete'}
                     </p>
                   </div>
@@ -749,18 +752,18 @@ export default function DevicesPage() {
                   {bulkResults.map((result) => (
                     <div
                       key={result.deviceId}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-[#111] rounded-xl border border-[#222]"
                     >
-                      <span className="font-medium text-gray-900">{result.deviceName}</span>
+                      <span className="font-medium text-white">{result.deviceName}</span>
                       <div className="flex items-center gap-2">
                         {result.status === 'pending' && (
-                          <span className="text-gray-500 text-sm">Waiting...</span>
+                          <span className="text-[#666] text-sm">Waiting...</span>
                         )}
                         {result.status === 'sending' && (
-                          <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
                         )}
                         {result.status === 'sent' && (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-400" />
                         )}
                         {result.status === 'error' && (
                           <XCircle className="w-4 h-4 text-red-500" />
@@ -777,9 +780,9 @@ export default function DevicesPage() {
                         setBulkCommand(null);
                         setBulkResults([]);
                       }}
-                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                      className="px-4 py-2.5 text-[#AAA] hover:text-white hover:bg-[#222] rounded-xl transition-colors"
                     >
-                      Send Another Command
+                      Send Another
                     </button>
                     <button
                       onClick={() => {
@@ -789,7 +792,7 @@ export default function DevicesPage() {
                         setBulkMode(false);
                         setSelectedDeviceIds(new Set());
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      className="glow-btn"
                     >
                       Done
                     </button>
@@ -803,30 +806,29 @@ export default function DevicesPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && deviceToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md m-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="neon-card w-full max-w-md m-4">
             <div className="p-6">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-red-100 rounded-full">
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                <div className="p-3 bg-red-500/20 rounded-xl">
+                  <AlertTriangle className="w-6 h-6 text-red-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Remove Device</h2>
-                  <p className="text-gray-500">This action cannot be undone</p>
+                  <h2 className="text-xl font-bold text-white">Remove Device</h2>
+                  <p className="text-[#666]">This action cannot be undone</p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <p className="font-medium text-gray-900">{deviceToDelete.hostname}</p>
-                <p className="text-sm text-gray-500">{deviceToDelete.os_version}</p>
-                <p className="text-xs text-gray-400 mt-2">
+              <div className="bg-[#111] rounded-xl p-4 mb-6 border border-[#222]">
+                <p className="font-medium text-white">{deviceToDelete.hostname}</p>
+                <p className="text-sm text-[#666]">{deviceToDelete.os_version}</p>
+                <p className="text-xs text-[#555] mt-2">
                   Last seen: {formatDistanceToNow(new Date(deviceToDelete.last_seen), { addSuffix: true })}
                 </p>
               </div>
 
-              <p className="text-sm text-gray-600 mb-6">
-                This will permanently remove the device and all its associated events and commands from the dashboard.
-                You can reinstall the agent to add it back.
+              <p className="text-sm text-[#888] mb-6">
+                This will permanently remove the device and all its associated events and commands.
               </p>
 
               <div className="flex gap-3">
@@ -835,7 +837,7 @@ export default function DevicesPage() {
                     setShowDeleteConfirm(false);
                     setDeviceToDelete(null);
                   }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-3 border border-[#333] rounded-xl hover:bg-[#111] text-[#AAA] hover:text-white transition-colors"
                   disabled={deleting}
                 >
                   Cancel
@@ -843,7 +845,7 @@ export default function DevicesPage() {
                 <button
                   onClick={() => deleteDevice(deviceToDelete)}
                   disabled={deleting}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 glow-btn flex items-center justify-center gap-2"
                 >
                   {deleting ? (
                     <>
@@ -853,7 +855,7 @@ export default function DevicesPage() {
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4" />
-                      Remove Device
+                      Remove
                     </>
                   )}
                 </button>
