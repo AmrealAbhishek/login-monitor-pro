@@ -411,17 +411,21 @@ else
     echo -e "${YELLOW}Note: Could not add to Login Items automatically (optional)${NC}"
 fi
 
-# Load LaunchAgents (both services will auto-start on login)
+# Load screen_watcher LaunchAgent (doesn't need Screen Recording)
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
 launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
-launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist"
+echo -e "${GREEN}✓ Screen Watcher started (auto-starts on login)${NC}"
 
-echo -e "${GREEN}✓ Services started (will auto-start on login)${NC}"
+# Start command_listener from Terminal context (inherits Terminal's Screen Recording permission)
+# This is required for screenshots to work properly
+pkill -f "command_listener.py" 2>/dev/null || true
+cd "$INSTALL_DIR" && nohup "$PYTHON_CMD" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
+echo -e "${GREEN}✓ Command Listener started (with Screen Recording support)${NC}"
 
-# Screen Recording permission note
+# Note about Screen Recording
 echo ""
-echo -e "${YELLOW}NOTE: For screenshots to work, run 'loginmonitor screen' after installation.${NC}"
+echo -e "${CYAN}Screenshots will work automatically because command_listener was started from Terminal.${NC}"
+echo -e "${YELLOW}After reboot, run 'loginmonitor start' from Terminal to restore screenshot support.${NC}"
 echo ""
 
 sleep 1
@@ -444,15 +448,19 @@ NC='\033[0m'
 case "$1" in
     start)
         echo "Starting Login Monitor..."
+        # Start screen_watcher via LaunchAgent
         launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
+        # Start command_listener from Terminal context (for Screen Recording support)
+        pkill -f "command_listener.py" 2>/dev/null || true
+        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
+        cd "$INSTALL_DIR" && nohup "$PYTHON_PATH" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
         sleep 2
+        echo -e "${GREEN}✓ Services started (screenshots enabled)${NC}"
         loginmonitor status
         ;;
     stop)
         echo "Stopping Login Monitor..."
         launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.commands.plist" 2>/dev/null || true
         pkill -f "screen_watcher.py" 2>/dev/null || true
         pkill -f "command_listener.py" 2>/dev/null || true
         echo -e "${GREEN}Stopped.${NC}"

@@ -22,6 +22,8 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -57,6 +59,11 @@ export default function DevicesPage() {
   const [bulkCommand, setBulkCommand] = useState<string | null>(null);
   const [bulkResults, setBulkResults] = useState<BulkCommandResult[]>([]);
   const [bulkExecuting, setBulkExecuting] = useState(false);
+
+  // Delete device state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -136,6 +143,31 @@ export default function DevicesPage() {
       console.error('Error sending command:', error);
     } finally {
       setSendingCommand(null);
+    }
+  }
+
+  async function deleteDevice(device: Device) {
+    setDeleting(true);
+    try {
+      // Delete related commands first
+      await supabase.from('commands').delete().eq('device_id', device.id);
+      // Delete related events
+      await supabase.from('events').delete().eq('device_id', device.id);
+      // Delete the device
+      const { error } = await supabase.from('devices').delete().eq('id', device.id);
+      if (error) throw error;
+
+      // Update local state
+      setDevices(prev => prev.filter(d => d.id !== device.id));
+      if (selectedDevice?.id === device.id) {
+        setSelectedDevice(null);
+      }
+      setShowDeleteConfirm(false);
+      setDeviceToDelete(null);
+    } catch (error) {
+      console.error('Error deleting device:', error);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -424,12 +456,24 @@ export default function DevicesPage() {
                     </h2>
                     <p className="text-gray-500">{selectedDevice.os_version}</p>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    isOnline(selectedDevice)
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {isOnline(selectedDevice) ? 'Online' : 'Offline'}
+                  <div className="flex items-center gap-2">
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      isOnline(selectedDevice)
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {isOnline(selectedDevice) ? 'Online' : 'Offline'}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDeviceToDelete(selectedDevice);
+                        setShowDeleteConfirm(true);
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remove device"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mt-6">
@@ -657,6 +701,68 @@ export default function DevicesPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && deviceToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md m-4">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-red-100 rounded-full">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Remove Device</h2>
+                  <p className="text-gray-500">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <p className="font-medium text-gray-900">{deviceToDelete.hostname}</p>
+                <p className="text-sm text-gray-500">{deviceToDelete.os_version}</p>
+                <p className="text-xs text-gray-400 mt-2">
+                  Last seen: {formatDistanceToNow(new Date(deviceToDelete.last_seen), { addSuffix: true })}
+                </p>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-6">
+                This will permanently remove the device and all its associated events and commands from the dashboard.
+                You can reinstall the agent to add it back.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeviceToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteDevice(deviceToDelete)}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Remove Device
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
