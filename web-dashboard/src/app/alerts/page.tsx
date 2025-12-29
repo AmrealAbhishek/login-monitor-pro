@@ -240,10 +240,10 @@ export default function AlertsPage() {
                     </div>
                     <p className="text-sm text-gray-600 dark:text-[#AAA] mt-1">{alert.description}</p>
                     <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-[#666]">
-                      {alert.metadata?.user_name && (
+                      {(alert.metadata as Record<string, string>)?.user_name && (
                         <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                           <User className="w-3 h-3" />
-                          {alert.metadata.user_name}
+                          {(alert.metadata as Record<string, string>).user_name}
                         </span>
                       )}
                       <span className="flex items-center gap-1">
