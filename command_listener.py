@@ -1529,12 +1529,18 @@ class CommandListener:
                     "error": "Failed to create tunnel. Check cloudflared installation."
                 }
 
+            # Get VNC credentials from config or use defaults
+            vnc_password = self.config.get("vnc", {}).get("password", "vnc123")
+            vnc_username = subprocess.run(["whoami"], capture_output=True, text=True).stdout.strip()
+
             # Store process info for later cleanup
             vnc_state = {
                 "ws_pid": ws_process.pid,
                 "tunnel_pid": tunnel_process.pid,
                 "tunnel_url": tunnel_url,
-                "ws_port": ws_port
+                "ws_port": ws_port,
+                "vnc_password": vnc_password,
+                "vnc_username": vnc_username
             }
 
             # Save state to file
@@ -1555,7 +1561,10 @@ class CommandListener:
                 "success": True,
                 "vnc_url": tunnel_url,
                 "ws_port": ws_port,
-                "message": f"VNC ready at {tunnel_url}"
+                "vnc_username": vnc_username,
+                "vnc_password": vnc_password,
+                "message": f"VNC ready at {tunnel_url}",
+                "instructions": "Use Mac credentials OR VNC password set in Screen Sharing settings"
             }
 
         except Exception as e:

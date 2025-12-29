@@ -15,6 +15,11 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
+  Copy,
+  Key,
+  User,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -22,6 +27,8 @@ interface VncSession {
   deviceId: string;
   status: 'connecting' | 'connected' | 'disconnected' | 'error';
   vncUrl?: string;
+  vncUsername?: string;
+  vncPassword?: string;
   error?: string;
 }
 
@@ -31,6 +38,8 @@ export default function RemoteDesktopPage() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<VncSession | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -53,6 +62,12 @@ export default function RemoteDesktopPage() {
 
   const isDeviceOnline = (lastSeen: string) => {
     return new Date(lastSeen) > new Date(Date.now() - 60 * 1000);
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   async function startVncSession(device: Device) {
@@ -100,13 +115,21 @@ export default function RemoteDesktopPage() {
       if (result) {
         if (result.status === 'completed') {
           clearInterval(pollInterval);
-          const vncResult = result.result as { success?: boolean; vnc_url?: string; error?: string };
+          const vncResult = result.result as {
+            success?: boolean;
+            vnc_url?: string;
+            vnc_username?: string;
+            vnc_password?: string;
+            error?: string
+          };
 
           if (vncResult?.success && vncResult?.vnc_url) {
             setSession({
               deviceId: device.id,
               status: 'connected',
               vncUrl: vncResult.vnc_url,
+              vncUsername: vncResult.vnc_username,
+              vncPassword: vncResult.vnc_password,
             });
           } else {
             setSession({
@@ -161,11 +184,17 @@ export default function RemoteDesktopPage() {
     }
   }
 
-  // Generate noVNC URL
+  // Generate noVNC URL with scaling options for better resolution
   const getNoVncUrl = (tunnelUrl: string) => {
-    // noVNC web client URL with the websocket tunnel
-    const wsUrl = tunnelUrl.replace('https://', 'wss://');
-    return `https://novnc.com/noVNC/vnc.html?autoconnect=true&host=${new URL(tunnelUrl).hostname}&port=443&path=websockify&encrypt=true`;
+    const hostname = new URL(tunnelUrl).hostname;
+    // noVNC parameters for better experience:
+    // - resize=scale: Scale to fit the window
+    // - quality=6: Medium quality (0-9, higher = better)
+    // - compression=2: Low compression for better quality
+    // - autoconnect=true: Auto connect on load
+    // - reconnect=true: Auto reconnect on disconnect
+    // - show_dot=true: Show cursor
+    return `https://novnc.com/noVNC/vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=6&compression=2&show_dot=true&host=${hostname}&port=443&path=websockify&encrypt=true`;
   };
 
   if (loading) {
@@ -194,6 +223,7 @@ export default function RemoteDesktopPage() {
             <button
               onClick={toggleFullscreen}
               className="p-2 bg-gray-100 dark:bg-[#222] rounded-lg hover:bg-gray-200 dark:hover:bg-[#333]"
+              title="Toggle fullscreen"
             >
               {isFullscreen ? (
                 <Minimize2 className="w-5 h-5 text-gray-600 dark:text-[#AAA]" />
@@ -256,6 +286,76 @@ export default function RemoteDesktopPage() {
               })}
             </div>
           </div>
+
+          {/* VNC Credentials Panel */}
+          {session?.status === 'connected' && (session.vncUsername || session.vncPassword) && (
+            <div className="mt-4 bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Key className="w-4 h-4 text-red-500" />
+                VNC Credentials
+              </h3>
+              <div className="space-y-3">
+                {session.vncUsername && (
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-[#666] uppercase tracking-wider">Username</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 bg-gray-50 dark:bg-[#222] rounded-lg px-3 py-2 font-mono text-sm text-gray-900 dark:text-white">
+                        <User className="w-4 h-4 inline mr-2 text-gray-400" />
+                        {session.vncUsername}
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(session.vncUsername!, 'username')}
+                        className="p-2 bg-gray-100 dark:bg-[#333] rounded-lg hover:bg-gray-200 dark:hover:bg-[#444]"
+                        title="Copy username"
+                      >
+                        {copiedField === 'username' ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-gray-500" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {session.vncPassword && (
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-[#666] uppercase tracking-wider">VNC Password</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 bg-gray-50 dark:bg-[#222] rounded-lg px-3 py-2 font-mono text-sm text-gray-900 dark:text-white">
+                        <Key className="w-4 h-4 inline mr-2 text-gray-400" />
+                        {showPassword ? session.vncPassword : '••••••••'}
+                      </div>
+                      <button
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="p-2 bg-gray-100 dark:bg-[#333] rounded-lg hover:bg-gray-200 dark:hover:bg-[#444]"
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4 text-gray-500" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-gray-500" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(session.vncPassword!, 'password')}
+                        className="p-2 bg-gray-100 dark:bg-[#333] rounded-lg hover:bg-gray-200 dark:hover:bg-[#444]"
+                        title="Copy password"
+                      >
+                        {copiedField === 'password' ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-gray-500" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 dark:text-[#666] mt-2">
+                  Use Mac credentials OR VNC password set in Screen Sharing settings
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* VNC Viewer */}
@@ -346,6 +446,9 @@ export default function RemoteDesktopPage() {
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
                       Connected to {selectedDevice.hostname}
                     </span>
+                    <span className="text-xs text-gray-500 dark:text-[#666]">
+                      (Resolution auto-scales to fit)
+                    </span>
                   </div>
                   <a
                     href={getNoVncUrl(session.vncUrl)}
@@ -354,7 +457,7 @@ export default function RemoteDesktopPage() {
                     className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    Open in new tab
+                    Open in new tab (better resolution)
                   </a>
                 </div>
                 <div className="flex-1 bg-black relative" ref={iframeRef as any}>
@@ -372,13 +475,22 @@ export default function RemoteDesktopPage() {
           {!session && selectedDevice && (
             <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
               <h4 className="font-medium text-yellow-800 dark:text-yellow-400 mb-2">
-                Requirements
+                Requirements & Login Options
               </h4>
               <ul className="text-sm text-yellow-700 dark:text-yellow-500 space-y-1">
                 <li>• Screen Sharing must be enabled on the Mac (System Settings → Sharing)</li>
-                <li>• VNC password will be required when connecting</li>
+                <li>• <strong>Option 1:</strong> Use Mac username + password</li>
+                <li>• <strong>Option 2:</strong> Use VNC-only password (set in Computer Settings → VNC viewers may control...)</li>
                 <li>• Device must be online and running the CyVigil agent</li>
               </ul>
+              <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/40 rounded-lg">
+                <p className="text-xs text-yellow-800 dark:text-yellow-400 font-medium">
+                  To set VNC-only password on the Mac:
+                </p>
+                <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">
+                  System Settings → General → Sharing → Screen Sharing (i) → Computer Settings → Check "VNC viewers may control screen with password" → Set password
+                </p>
+              </div>
             </div>
           )}
         </div>
