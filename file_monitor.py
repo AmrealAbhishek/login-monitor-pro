@@ -114,6 +114,7 @@ class FileAccessEvent:
     destination: Optional[str] = None
     file_size: Optional[int] = None
     user_name: Optional[str] = None
+    hostname: Optional[str] = None
     timestamp: datetime = field(default_factory=datetime.now)
     matched_rule: Optional[FileRule] = None
 
@@ -389,6 +390,7 @@ class FileMonitor:
         app_name, bundle_id = self._get_active_app()
 
         # Create event
+        import socket
         event = FileAccessEvent(
             file_path=file_path,
             file_name=path.name,
@@ -398,7 +400,8 @@ class FileMonitor:
             bundle_id=bundle_id,
             destination=destination,
             file_size=file_size,
-            user_name=os.getenv("USER", "unknown")
+            user_name=os.getenv("USER", "unknown"),
+            hostname=socket.gethostname()
         )
 
         # Check against rules
@@ -499,6 +502,7 @@ class FileMonitor:
                     "app_name": event.app_name,
                     "bundle_id": event.bundle_id,
                     "user_name": event.user_name,
+                    "hostname": event.hostname,
                     "triggered_alert": event.matched_rule is not None,
                     "alert_severity": event.matched_rule.severity if event.matched_rule else None,
                     "rule_id": event.matched_rule.id if event.matched_rule and not event.matched_rule.id.startswith('default') else None

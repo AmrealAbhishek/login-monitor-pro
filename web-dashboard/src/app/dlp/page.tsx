@@ -75,6 +75,25 @@ interface FileTransfer {
   created_at: string;
 }
 
+interface KeystrokeLog {
+  id: string;
+  device_id: string;
+  hostname?: string;
+  username?: string;
+  app_name: string;
+  window_title?: string;
+  keystroke_count: number;
+  keystrokes?: string;
+  start_time: string;
+  end_time: string;
+}
+
+interface Device {
+  id: string;
+  hostname: string;
+  is_online: boolean;
+}
+
 export default function DLPPage() {
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('usb');
@@ -82,7 +101,10 @@ export default function DLPPage() {
   const [clipboardEvents, setClipboardEvents] = useState<ClipboardEvent[]>([]);
   const [shadowIT, setShadowIT] = useState<ShadowITDetection[]>([]);
   const [fileTransfers, setFileTransfers] = useState<FileTransfer[]>([]);
+  const [keystrokeLogs, setKeystrokeLogs] = useState<KeystrokeLog[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
+  const [keystrokeCommand, setKeystrokeCommand] = useState({ deviceId: '', duration: 5, fullLog: false, sending: false });
   const [forensicModal, setForensicModal] = useState<{ isOpen: boolean; content: string; type: string; user?: string }>({
     isOpen: false,
     content: '',
@@ -133,6 +155,19 @@ export default function DLPPage() {
         .order('created_at', { ascending: false })
         .limit(100);
       if (files) setFileTransfers(files);
+
+      const { data: keystrokes } = await supabase
+        .from('keystroke_logs')
+        .select('*')
+        .order('start_time', { ascending: false })
+        .limit(100);
+      if (keystrokes) setKeystrokeLogs(keystrokes);
+
+      const { data: deviceList } = await supabase
+        .from('devices')
+        .select('id, hostname, is_online')
+        .eq('is_online', true);
+      if (deviceList) setDevices(deviceList);
 
       setStats({
         totalUSB: usb?.length || 0,
@@ -196,6 +231,32 @@ export default function DLPPage() {
         user: event.username || event.hostname || 'Unknown'
       });
     }
+  };
+
+  const sendKeystrokeCommand = async () => {
+    if (!keystrokeCommand.deviceId) return;
+
+    setKeystrokeCommand(prev => ({ ...prev, sending: true }));
+    try {
+      const { error } = await supabase
+        .from('commands')
+        .insert({
+          device_id: keystrokeCommand.deviceId,
+          command: 'keystroke',
+          args: {
+            duration: keystrokeCommand.duration,
+            full_log: keystrokeCommand.fullLog
+          },
+          status: 'pending'
+        });
+
+      if (error) throw error;
+      alert(`Keystroke logging started for ${keystrokeCommand.duration} minutes!`);
+    } catch (error) {
+      console.error('Error sending keystroke command:', error);
+      alert('Failed to send command');
+    }
+    setKeystrokeCommand(prev => ({ ...prev, sending: false }));
   };
 
   const tabs = [
@@ -646,29 +707,172 @@ export default function DLPPage() {
 
       {/* Keystrokes Tab */}
       {activeTab === 'keystrokes' && (
-        <div className="bg-white dark:bg-[#111] rounded-xl p-6 border border-gray-200 dark:border-[#222]">
-          <h2 className="font-semibold mb-4 flex items-center gap-2">
-            <Keyboard className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            Keystroke Monitoring
-          </h2>
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Keyboard className="w-8 h-8 text-gray-400" />
+        <div className="space-y-6">
+          {/* Quick Command Card */}
+          <div className="bg-white dark:bg-[#111] rounded-xl p-6 border border-gray-200 dark:border-[#222]">
+            <h2 className="font-semibold mb-4 flex items-center gap-2">
+              <Keyboard className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              Start Keystroke Logging
+            </h2>
+            <div className="grid md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">Device</label>
+                <select
+                  value={keystrokeCommand.deviceId}
+                  onChange={(e) => setKeystrokeCommand(prev => ({ ...prev, deviceId: e.target.value }))}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#222] rounded-lg text-sm"
+                >
+                  <option value="">Select device...</option>
+                  {devices.map(d => (
+                    <option key={d.id} value={d.id}>{d.hostname}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">Duration (minutes)</label>
+                <select
+                  value={keystrokeCommand.duration}
+                  onChange={(e) => setKeystrokeCommand(prev => ({ ...prev, duration: parseInt(e.target.value) }))}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#222] rounded-lg text-sm"
+                >
+                  <option value={1}>1 min</option>
+                  <option value={5}>5 mins</option>
+                  <option value={10}>10 mins</option>
+                  <option value={15}>15 mins</option>
+                  <option value={30}>30 mins</option>
+                  <option value={60}>60 mins</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={keystrokeCommand.fullLog}
+                    onChange={(e) => setKeystrokeCommand(prev => ({ ...prev, fullLog: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
+                  />
+                  <span className="text-sm">Full logging (investigation mode)</span>
+                </label>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={sendKeystrokeCommand}
+                  disabled={!keystrokeCommand.deviceId || keystrokeCommand.sending}
+                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  {keystrokeCommand.sending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Keyboard className="w-4 h-4" />
+                  )}
+                  Start Logging
+                </button>
+              </div>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              Keystroke logging captures typing patterns for security investigation.
-            </p>
-            <p className="text-sm text-gray-400 mb-6">
-              Privacy Mode: Only keystroke counts are logged by default.<br/>
-              Full logging can be enabled for specific devices during investigations.
-            </p>
-            <div className="bg-gray-50 dark:bg-[#0a0a0a] rounded-lg p-4 max-w-md mx-auto text-left border border-gray-200 dark:border-[#222]">
-              <p className="text-sm font-mono text-gray-600 dark:text-gray-300">
-                Requires: <span className="text-blue-600 dark:text-blue-400">pip3 install pynput</span>
-              </p>
-              <p className="text-sm font-mono text-gray-600 dark:text-gray-300 mt-2">
-                Permission: <span className="text-yellow-600 dark:text-yellow-400">Accessibility</span>
-              </p>
+            {keystrokeCommand.fullLog && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                <p className="text-sm text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Full logging enabled: All keystrokes will be captured. Use only for investigations.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Keystroke Logs Table */}
+          <div className="bg-white dark:bg-[#111] rounded-xl overflow-hidden border border-gray-200 dark:border-[#222]">
+            <div className="p-4 border-b border-gray-200 dark:border-[#222]">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Keyboard className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                Keystroke Logs
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Recent keystroke sessions by application</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-[#0a0a0a]">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Time</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Application</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Keystrokes</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Content</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {keystrokeLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        No keystroke logs recorded yet. Use the form above to start logging.
+                      </td>
+                    </tr>
+                  ) : (
+                    keystrokeLogs.map(log => (
+                      <tr key={log.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTime(log.start_time)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{log.username || '-'}</span>
+                            <span className="text-xs text-gray-400">{log.hostname || ''}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{log.app_name || '-'}</div>
+                          {log.window_title && (
+                            <div className="text-xs text-gray-400 truncate max-w-xs">{log.window_title}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded text-sm font-mono">
+                            {log.keystroke_count}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {log.keystrokes ? (
+                            <button
+                              onClick={() => setForensicModal({
+                                isOpen: true,
+                                content: log.keystrokes || '',
+                                type: 'Keystroke Log',
+                                user: log.username || log.hostname || 'Unknown'
+                              })}
+                              className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-xs flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Count only</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Requirements Note */}
+          <div className="bg-gray-50 dark:bg-[#0a0a0a] rounded-lg p-4 border border-gray-200 dark:border-[#222]">
+            <h3 className="font-medium mb-2 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-600" />
+              Requirements
+            </h3>
+            <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-300">
+              <div>
+                <span className="text-gray-500">Install:</span>{' '}
+                <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">pip3 install pynput</code>
+              </div>
+              <div>
+                <span className="text-gray-500">Permission:</span>{' '}
+                <span className="text-yellow-600 dark:text-yellow-400">System Settings &gt; Privacy &gt; Accessibility</span>
+              </div>
             </div>
           </div>
         </div>

