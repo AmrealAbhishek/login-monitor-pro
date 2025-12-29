@@ -160,9 +160,12 @@ CREATE TABLE IF NOT EXISTS app_categories (
   bundle_id TEXT NOT NULL,
   app_name TEXT,
   category TEXT DEFAULT 'neutral' CHECK (category IN ('productive', 'unproductive', 'neutral', 'communication')),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(COALESCE(org_id, '00000000-0000-0000-0000-000000000000'::UUID), bundle_id)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Create unique index for app_categories (handles NULL org_id for global defaults)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_categories_unique
+ON app_categories (COALESCE(org_id, '00000000-0000-0000-0000-000000000000'::UUID), bundle_id);
 
 -- Insert default app categories
 INSERT INTO app_categories (bundle_id, app_name, category) VALUES
