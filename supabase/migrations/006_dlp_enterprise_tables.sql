@@ -174,18 +174,18 @@ CREATE TABLE IF NOT EXISTS sensitive_data_patterns (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Insert default sensitive data patterns
+-- Insert default sensitive data patterns (using $$ dollar quoting for regex)
 INSERT INTO sensitive_data_patterns (org_id, pattern_name, pattern_type, pattern_value, severity) VALUES
-(NULL, 'Credit Card', 'regex', '\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b', 'critical'),
-(NULL, 'SSN', 'regex', '\b\d{3}-\d{2}-\d{4}\b', 'critical'),
-(NULL, 'API Key', 'regex', '\b(?:api[_-]?key|apikey|api_secret)["\s:=]+["\']?([a-zA-Z0-9_\-]{20,})["\']?\b', 'high'),
-(NULL, 'AWS Key', 'regex', '\bAKIA[0-9A-Z]{16}\b', 'critical'),
-(NULL, 'Private Key', 'regex', '-----BEGIN (?:RSA |DSA |EC )?PRIVATE KEY-----', 'critical'),
-(NULL, 'Password Field', 'regex', '\b(?:password|passwd|pwd)["\s:=]+["\']?([^\s"'']{6,})["\']?\b', 'high'),
-(NULL, 'Email Address', 'regex', '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', 'low'),
-(NULL, 'Phone Number', 'regex', '\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b', 'low'),
-(NULL, 'IP Address', 'regex', '\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', 'low'),
-(NULL, 'JWT Token', 'regex', '\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b', 'high')
+(NULL, 'Credit Card', 'regex', $$\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b$$, 'critical'),
+(NULL, 'SSN', 'regex', $$\b\d{3}-\d{2}-\d{4}\b$$, 'critical'),
+(NULL, 'API Key', 'regex', $$\b(?:api[_-]?key|apikey|api_secret)[\s:=]+[a-zA-Z0-9_\-]{20,}\b$$, 'high'),
+(NULL, 'AWS Key', 'regex', $$\bAKIA[0-9A-Z]{16}\b$$, 'critical'),
+(NULL, 'Private Key', 'regex', $$-----BEGIN (?:RSA |DSA |EC )?PRIVATE KEY-----$$, 'critical'),
+(NULL, 'Password Field', 'regex', $$\b(?:password|passwd|pwd)[\s:=]+\S{6,}\b$$, 'high'),
+(NULL, 'Email Address', 'regex', $$\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b$$, 'low'),
+(NULL, 'Phone Number', 'regex', $$\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b$$, 'low'),
+(NULL, 'IP Address', 'regex', $$\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b$$, 'low'),
+(NULL, 'JWT Token', 'regex', $$\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b$$, 'high')
 ON CONFLICT DO NOTHING;
 
 -- Default Shadow IT rules (blocked by default)
