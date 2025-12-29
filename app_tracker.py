@@ -21,10 +21,12 @@ PRODUCTIVE_APPS = {
     "com.apple.dt.Xcode": "productive",
     "com.microsoft.VSCode": "productive",
     "com.visualstudio.code.oss": "productive",
+    "com.todesktop.230313mzl4w4u92": "productive",  # Cursor
     "com.jetbrains.intellij": "productive",
     "com.jetbrains.pycharm": "productive",
     "com.apple.Terminal": "productive",
     "com.googlecode.iterm2": "productive",
+    "dev.warp.Warp-Stable": "productive",  # Warp Terminal
     "com.figma.Desktop": "productive",
     "com.sketch": "productive",
     "com.adobe.Photoshop": "productive",
@@ -35,9 +37,12 @@ PRODUCTIVE_APPS = {
     "com.apple.Numbers": "productive",
     "com.apple.Pages": "productive",
     "com.apple.Keynote": "productive",
+    "com.apple.Notes": "productive",
     "notion.id": "productive",
     "com.linear": "productive",
     "com.github.GitHubClient": "productive",
+    "com.apple.Safari": "productive",  # Browser - could be either
+    "com.google.Chrome": "productive",  # Browser - could be either
 }
 
 UNPRODUCTIVE_APPS = {
@@ -52,6 +57,9 @@ UNPRODUCTIVE_APPS = {
     "com.tiktok.TikTok": "unproductive",
     "com.valvesoftware.steam": "unproductive",
     "com.apple.AppStore": "unproductive",
+    "org.videolan.vlc": "unproductive",  # VLC
+    "com.apple.TV": "unproductive",
+    "com.apple.Music": "unproductive",
 }
 
 COMMUNICATION_APPS = {
@@ -62,6 +70,10 @@ COMMUNICATION_APPS = {
     "com.apple.mail": "communication",
     "com.microsoft.Outlook": "communication",
     "com.apple.MobileSMS": "communication",
+    "net.whatsapp.WhatsApp": "communication",  # WhatsApp
+    "com.mattermost.desktop": "communication",  # Mattermost
+    "com.hnc.Discord": "communication",  # Discord
+    "com.apple.FaceTime": "communication",
 }
 
 
@@ -677,6 +689,16 @@ class AppTracker:
             for row in rows:
                 session_id, app_name, bundle_id, launched_at, terminated_at, duration, _ = row
 
+                # Determine category from bundle_id
+                category = "neutral"
+                if bundle_id:
+                    if bundle_id in PRODUCTIVE_APPS:
+                        category = "productive"
+                    elif bundle_id in UNPRODUCTIVE_APPS:
+                        category = "unproductive"
+                    elif bundle_id in COMMUNICATION_APPS:
+                        category = "communication"
+
                 try:
                     # Insert into Supabase app_usage table
                     client._request(
@@ -688,7 +710,8 @@ class AppTracker:
                             "bundle_id": bundle_id,
                             "launched_at": launched_at,
                             "terminated_at": terminated_at,
-                            "duration_seconds": duration
+                            "duration_seconds": duration,
+                            "category": category
                         },
                         use_service_key=True
                     )

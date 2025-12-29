@@ -296,6 +296,37 @@ export default function InstallPage() {
           repository.
         </p>
       </div>
+
+      {/* Uninstall Section */}
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="p-4 border-b flex items-center gap-3">
+          <Terminal className="w-5 h-5 text-red-500" />
+          <span className="font-medium text-gray-900">Uninstall Agent</span>
+        </div>
+        <div className="p-6">
+          <p className="text-gray-600 mb-4">
+            To completely remove the CyVigil agent from a Mac, run this command:
+          </p>
+          <div className="relative">
+            <pre className="bg-gray-900 text-red-400 p-4 rounded-lg overflow-x-auto text-sm font-mono">
+              curl -fsSL https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/uninstall.sh | bash
+            </pre>
+            <button
+              onClick={() => copyToClipboard('curl -fsSL https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/uninstall.sh | bash', 'uninstall')}
+              className="absolute top-3 right-3 p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              {copied === 'uninstall' ? (
+                <Check className="w-4 h-4 text-green-400" />
+              ) : (
+                <Copy className="w-4 h-4 text-gray-300" />
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            This will stop all services, remove LaunchAgents, delete configuration files, and clean up logs.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
