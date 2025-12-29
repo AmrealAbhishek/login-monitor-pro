@@ -842,6 +842,210 @@ class CommandListener:
             return {"success": False, "error": str(e)}
 
     # =========================================================================
+    # DATA PROTECTION COMMANDS (Enterprise)
+    # =========================================================================
+
+    def cmd_lock_with_message(self, args: dict) -> dict:
+        """Lock the device and display a custom security message"""
+        try:
+            message = args.get("message", "This device is protected by CyVigil Security")
+            title = args.get("title", "Security Alert")
+
+            log(f"[INFO] Locking device with message: {message}")
+
+            # Lock the screen first
+            subprocess.run(["pmset", "displaysleepnow"], capture_output=True)
+
+            # Show persistent alert dialog
+            script = f'''
+            tell application "System Events"
+                display alert "{title}" message "{message}" as critical buttons {{"OK"}} giving up after 300
+            end tell
+            '''
+            subprocess.Popen(["osascript", "-e", script],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Log to Supabase protection_actions table (if available)
+            if self.client and self.device_id:
+                try:
+                    self.client.client.table("protection_actions").insert({
+                        "device_id": self.device_id,
+                        "action_type": "lock",
+                        "triggered_by": "manual",
+                        "status": "completed",
+                        "result": {"message": message}
+                    }).execute()
+                except:
+                    pass  # Table may not exist yet
+
+            return {
+                "success": True,
+                "action": "lock_with_message",
+                "message": message
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _get_wipe_confirmation_code(self) -> str:
+        """Generate a device-specific wipe confirmation code"""
+        import hashlib
+        # Use device_id + fixed salt to create confirmation code
+        data = f"{self.device_id}:CyVigil:WipeConfirm"
+        return hashlib.sha256(data.encode()).hexdigest()[:8].upper()
+
+    def cmd_get_wipe_code(self, args: dict) -> dict:
+        """Get the confirmation code needed for remote wipe"""
+        try:
+            code = self._get_wipe_confirmation_code()
+            return {
+                "success": True,
+                "wipe_code": code,
+                "warning": "This code is required to perform a remote wipe. Keep it secure!"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_remote_wipe(self, args: dict) -> dict:
+        """
+        Remote wipe - Delete user data with confirmation required
+
+        REQUIRES confirmation code from cmd_get_wipe_code
+
+        This will delete:
+        - ~/Documents
+        - ~/Desktop
+        - ~/Downloads
+        - ~/.login-monitor/captured_images
+        - ~/.login-monitor/captured_audio
+        """
+        try:
+            import shutil
+
+            confirmation = args.get("confirmation", "").upper()
+            expected_code = self._get_wipe_confirmation_code()
+
+            # Verify confirmation code
+            if confirmation != expected_code:
+                log(f"[SECURITY] Remote wipe rejected - invalid confirmation code")
+                return {
+                    "success": False,
+                    "error": "Invalid confirmation code. Use 'get_wipe_code' command to get the correct code.",
+                    "hint": "Remote wipe requires confirmation to prevent accidental data loss"
+                }
+
+            log("[WARNING] Remote wipe initiated with valid confirmation code")
+
+            # Record action before wiping
+            if self.client and self.device_id:
+                try:
+                    self.client.client.table("protection_actions").insert({
+                        "device_id": self.device_id,
+                        "action_type": "wipe",
+                        "triggered_by": "manual",
+                        "status": "executing",
+                        "result": {"initiated_at": datetime.now().isoformat()}
+                    }).execute()
+                except:
+                    pass
+
+            # Directories to wipe
+            wipe_targets = [
+                Path.home() / "Documents",
+                Path.home() / "Desktop",
+                Path.home() / "Downloads",
+                BASE_DIR / "captured_images",
+                BASE_DIR / "captured_audio",
+            ]
+
+            wiped = []
+            failed = []
+
+            for target in wipe_targets:
+                try:
+                    if target.exists():
+                        if target.is_dir():
+                            shutil.rmtree(target, ignore_errors=True)
+                        else:
+                            target.unlink()
+                        # Recreate empty directory
+                        target.mkdir(parents=True, exist_ok=True)
+                        wiped.append(str(target))
+                        log(f"[WIPE] Wiped: {target}")
+                except Exception as e:
+                    failed.append({"path": str(target), "error": str(e)})
+                    log(f"[WIPE] Failed: {target} - {e}")
+
+            # Update action status
+            if self.client and self.device_id:
+                try:
+                    self.client.client.table("protection_actions").update({
+                        "status": "completed",
+                        "completed_at": datetime.now().isoformat(),
+                        "result": {"wiped": wiped, "failed": failed}
+                    }).eq("device_id", self.device_id).eq("action_type", "wipe").eq("status", "executing").execute()
+                except:
+                    pass
+
+            # Lock device after wipe
+            subprocess.run(["pmset", "displaysleepnow"], capture_output=True)
+
+            return {
+                "success": True,
+                "action": "remote_wipe",
+                "wiped": wiped,
+                "failed": failed,
+                "message": "Device wiped and locked"
+            }
+
+        except Exception as e:
+            log(f"[ERROR] Remote wipe error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def cmd_disable_usb(self, args: dict) -> dict:
+        """Disable USB mass storage devices (requires admin privileges)"""
+        try:
+            # Note: This requires sudo/admin privileges
+            # We can only attempt to unmount existing USB drives
+            result = subprocess.run(
+                ["diskutil", "list", "-plist", "external"],
+                capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode == 0:
+                import plistlib
+                plist = plistlib.loads(result.stdout.encode())
+                disks = plist.get("WholeDisks", [])
+
+                ejected = []
+                for disk in disks:
+                    try:
+                        subprocess.run(["diskutil", "eject", disk],
+                                      capture_output=True, timeout=10)
+                        ejected.append(disk)
+                    except:
+                        pass
+
+                return {
+                    "success": True,
+                    "action": "disable_usb",
+                    "ejected_disks": ejected,
+                    "note": "External USB drives ejected. Full USB blocking requires admin privileges."
+                }
+
+            return {"success": True, "message": "No external USB drives found"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_enable_usb(self, args: dict) -> dict:
+        """Re-enable USB devices (placeholder - requires re-plugging devices)"""
+        return {
+            "success": True,
+            "message": "USB enabled. Re-plug devices to reconnect."
+        }
+
+    # =========================================================================
     # MAIN LOOP
     # =========================================================================
 
@@ -891,6 +1095,17 @@ class CommandListener:
             "appusage": self.cmd_appusage,
             "listreports": self.cmd_listreports,
             "listbackups": self.cmd_listbackups,
+            # Data protection commands
+            "lock_with_message": self.cmd_lock_with_message,
+            "lockwithmessage": self.cmd_lock_with_message,  # Alternative without underscore
+            "get_wipe_code": self.cmd_get_wipe_code,
+            "getwipecode": self.cmd_get_wipe_code,
+            "remote_wipe": self.cmd_remote_wipe,
+            "remotewipe": self.cmd_remote_wipe,
+            "disable_usb": self.cmd_disable_usb,
+            "disableusb": self.cmd_disable_usb,
+            "enable_usb": self.cmd_enable_usb,
+            "enableusb": self.cmd_enable_usb,
         }
 
         handler = handlers.get(cmd_name)
