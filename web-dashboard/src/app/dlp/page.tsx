@@ -8,7 +8,7 @@ import {
   Usb, Clipboard, UserX, FolderSync, Keyboard, Link2,
   RefreshCw, AlertTriangle, ShieldAlert, Eye, Copy, X,
   HardDrive, FileWarning, Search, Download, Upload, Clock,
-  User, Monitor, ArrowLeft, Loader2
+  User, Monitor, ArrowLeft, Loader2, Square, Activity
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -106,6 +106,7 @@ export default function DLPPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [keystrokeCommand, setKeystrokeCommand] = useState({ deviceId: '', duration: 5, fullLog: false, sending: false });
+  const [activeKeystrokeSessions, setActiveKeystrokeSessions] = useState<{[deviceId: string]: boolean}>({});
   const [forensicModal, setForensicModal] = useState<{ isOpen: boolean; content: string; type: string; user?: string }>({
     isOpen: false,
     content: '',
@@ -235,8 +236,42 @@ export default function DLPPage() {
     }
   };
 
+  // Check for active keystroke sessions
+  const checkActiveKeystrokeSessions = async () => {
+    try {
+      const { data } = await supabase
+        .from('commands')
+        .select('device_id')
+        .eq('command', 'keystroke')
+        .in('status', ['pending', 'processing']);
+
+      if (data) {
+        const activeSessions: {[key: string]: boolean} = {};
+        data.forEach(cmd => {
+          activeSessions[cmd.device_id] = true;
+        });
+        setActiveKeystrokeSessions(activeSessions);
+      }
+    } catch (error) {
+      console.error('Error checking active sessions:', error);
+    }
+  };
+
+  // Load active sessions on tab change
+  useEffect(() => {
+    if (activeTab === 'keystrokes') {
+      checkActiveKeystrokeSessions();
+    }
+  }, [activeTab]);
+
   const sendKeystrokeCommand = async () => {
     if (!keystrokeCommand.deviceId) return;
+
+    // Check if already running
+    if (activeKeystrokeSessions[keystrokeCommand.deviceId]) {
+      alert('Keystroke logging is already active on this device. Stop it first.');
+      return;
+    }
 
     setKeystrokeCommand(prev => ({ ...prev, sending: true }));
     try {
@@ -253,12 +288,41 @@ export default function DLPPage() {
         });
 
       if (error) throw error;
+
+      // Mark as active
+      setActiveKeystrokeSessions(prev => ({ ...prev, [keystrokeCommand.deviceId]: true }));
       alert(`Keystroke logging started for ${keystrokeCommand.duration} minutes!`);
     } catch (error) {
       console.error('Error sending keystroke command:', error);
       alert('Failed to send command');
     }
     setKeystrokeCommand(prev => ({ ...prev, sending: false }));
+  };
+
+  const stopKeystrokeCommand = async (deviceId: string) => {
+    try {
+      const { error } = await supabase
+        .from('commands')
+        .insert({
+          device_id: deviceId,
+          command: 'keystroke_stop',
+          args: {},
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      // Remove from active sessions
+      setActiveKeystrokeSessions(prev => {
+        const newSessions = { ...prev };
+        delete newSessions[deviceId];
+        return newSessions;
+      });
+      alert('Stop command sent!');
+    } catch (error) {
+      console.error('Error sending stop command:', error);
+      alert('Failed to send stop command');
+    }
   };
 
   const tabs = [
@@ -729,9 +793,10 @@ export default function DLPPage() {
                     const lastSeen = new Date(d.last_seen);
                     const minutesAgo = Math.floor((Date.now() - lastSeen.getTime()) / 60000);
                     const isOnline = minutesAgo < 5;
+                    const isCapturing = activeKeystrokeSessions[d.id];
                     return (
                       <option key={d.id} value={d.id}>
-                        {isOnline ? '[Online] ' : `[${minutesAgo}m ago] `}{d.hostname}
+                        {isCapturing ? '[CAPTURING] ' : isOnline ? '[Online] ' : `[${minutesAgo}m ago] `}{d.hostname}
                       </option>
                     );
                   })}
@@ -763,19 +828,29 @@ export default function DLPPage() {
                   <span className="text-sm">Full logging (investigation mode)</span>
                 </label>
               </div>
-              <div className="flex items-end">
-                <button
-                  onClick={sendKeystrokeCommand}
-                  disabled={!keystrokeCommand.deviceId || keystrokeCommand.sending}
-                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
-                >
-                  {keystrokeCommand.sending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Keyboard className="w-4 h-4" />
-                  )}
-                  Start Logging
-                </button>
+              <div className="flex items-end gap-2">
+                {keystrokeCommand.deviceId && activeKeystrokeSessions[keystrokeCommand.deviceId] ? (
+                  <button
+                    onClick={() => stopKeystrokeCommand(keystrokeCommand.deviceId)}
+                    className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Square className="w-4 h-4" />
+                    Stop Logging
+                  </button>
+                ) : (
+                  <button
+                    onClick={sendKeystrokeCommand}
+                    disabled={!keystrokeCommand.deviceId || keystrokeCommand.sending}
+                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {keystrokeCommand.sending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Keyboard className="w-4 h-4" />
+                    )}
+                    Start Logging
+                  </button>
+                )}
               </div>
             </div>
             {keystrokeCommand.fullLog && (

