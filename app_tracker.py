@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 App Tracker for Login Monitor PRO
-Tracks application usage on macOS using NSWorkspace notifications.
+Tracks FOREGROUND application usage on macOS - measures actual active time.
 """
 
 import json
@@ -13,10 +13,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List
 
-SYNC_INTERVAL_SECONDS = 300  # Sync to Supabase every 5 minutes
+SYNC_INTERVAL_SECONDS = 60  # Sync to Supabase every minute
 IDLE_THRESHOLD_SECONDS = 300  # 5 minutes = idle
+FOCUS_CHECK_INTERVAL = 5  # Check focus every 5 seconds
 
-# App productivity categories (default mappings)
+# App productivity categories (bundle ID -> category)
 PRODUCTIVE_APPS = {
     "com.apple.dt.Xcode": "productive",
     "com.microsoft.VSCode": "productive",
@@ -41,8 +42,8 @@ PRODUCTIVE_APPS = {
     "notion.id": "productive",
     "com.linear": "productive",
     "com.github.GitHubClient": "productive",
-    "com.apple.Safari": "productive",  # Browser - could be either
-    "com.google.Chrome": "productive",  # Browser - could be either
+    "com.apple.Safari": "productive",
+    "com.google.Chrome": "productive",
 }
 
 UNPRODUCTIVE_APPS = {
@@ -57,7 +58,7 @@ UNPRODUCTIVE_APPS = {
     "com.tiktok.TikTok": "unproductive",
     "com.valvesoftware.steam": "unproductive",
     "com.apple.AppStore": "unproductive",
-    "org.videolan.vlc": "unproductive",  # VLC
+    "org.videolan.vlc": "unproductive",
     "com.apple.TV": "unproductive",
     "com.apple.Music": "unproductive",
 }
@@ -70,10 +71,34 @@ COMMUNICATION_APPS = {
     "com.apple.mail": "communication",
     "com.microsoft.Outlook": "communication",
     "com.apple.MobileSMS": "communication",
-    "net.whatsapp.WhatsApp": "communication",  # WhatsApp
-    "com.mattermost.desktop": "communication",  # Mattermost
-    "com.hnc.Discord": "communication",  # Discord
+    "net.whatsapp.WhatsApp": "communication",
+    "Mattermost.Desktop": "communication",
+    "com.hnc.Discord": "communication",
     "com.apple.FaceTime": "communication",
+    "com.apple.mobilephone": "communication",
+}
+
+# Map bundle IDs to proper display names
+APP_DISPLAY_NAMES = {
+    "dev.warp.Warp-Stable": "Warp Terminal",
+    "com.todesktop.230313mzl4w4u92": "Cursor",
+    "com.apple.finder": "Finder",
+    "com.apple.Terminal": "Terminal",
+    "com.google.Chrome": "Google Chrome",
+    "com.apple.Safari": "Safari",
+    "com.apple.Notes": "Notes",
+    "com.apple.mail": "Mail",
+    "com.apple.Music": "Apple Music",
+    "com.apple.TV": "Apple TV",
+    "com.microsoft.VSCode": "VS Code",
+    "com.visualstudio.code.oss": "VS Code",
+    "com.tinyspeck.slackmacgap": "Slack",
+    "net.whatsapp.WhatsApp": "WhatsApp",
+    "Mattermost.Desktop": "Mattermost",
+    "com.apple.mobilephone": "Phone",
+    "org.videolan.vlc": "VLC",
+    "com.apple.systempreferences": "System Settings",
+    "com.apple.Preview": "Preview",
 }
 
 
@@ -96,27 +121,26 @@ def log(message: str):
         pass
 
 
-class AppSession:
-    """Represents an app usage session"""
-    def __init__(self, app_name: str, bundle_id: str, launched_at: datetime):
-        self.app_name = app_name
-        self.bundle_id = bundle_id
-        self.launched_at = launched_at
-        self.terminated_at: Optional[datetime] = None
+def get_app_display_name(app_name: str, bundle_id: str) -> str:
+    """Get proper display name for an app"""
+    if bundle_id in APP_DISPLAY_NAMES:
+        return APP_DISPLAY_NAMES[bundle_id]
+    return app_name
 
-    @property
-    def duration_seconds(self) -> int:
-        end_time = self.terminated_at or datetime.now()
-        return int((end_time - self.launched_at).total_seconds())
 
-    def to_dict(self) -> Dict:
-        return {
-            "app_name": self.app_name,
-            "bundle_id": self.bundle_id,
-            "launched_at": self.launched_at.isoformat(),
-            "terminated_at": self.terminated_at.isoformat() if self.terminated_at else None,
-            "duration_seconds": self.duration_seconds
-        }
+def get_app_category(bundle_id: str) -> str:
+    """Get productivity category for an app"""
+    if not bundle_id:
+        return "neutral"
+
+    if bundle_id in PRODUCTIVE_APPS:
+        return "productive"
+    elif bundle_id in UNPRODUCTIVE_APPS:
+        return "unproductive"
+    elif bundle_id in COMMUNICATION_APPS:
+        return "communication"
+    else:
+        return "neutral"
 
 
 class IdleDetector:
@@ -134,10 +158,9 @@ class IdleDetector:
             if result.returncode == 0:
                 for line in result.stdout.split('\n'):
                     if 'HIDIdleTime' in line:
-                        # Extract nanoseconds value
                         try:
                             ns = int(line.split('=')[1].strip())
-                            return ns // 1_000_000_000  # Convert to seconds
+                            return ns // 1_000_000_000
                         except (IndexError, ValueError):
                             pass
 
@@ -153,105 +176,216 @@ class IdleDetector:
         return IdleDetector.get_idle_time() >= threshold_seconds
 
 
-class ProductivityTracker:
-    """Tracks and calculates productivity scores"""
+class ForegroundTracker:
+    """Tracks foreground application usage"""
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
-        self._init_productivity_table()
+        self.current_app: Optional[Dict] = None
+        self.focus_start_time: Optional[datetime] = None
+        self._init_database()
 
-    def _init_productivity_table(self):
-        """Initialize productivity scores table"""
+    def _init_database(self):
+        """Initialize database tables"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        # Table for foreground app sessions
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS foreground_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_name TEXT NOT NULL,
+                bundle_id TEXT,
+                start_time TEXT NOT NULL,
+                end_time TEXT,
+                duration_seconds INTEGER,
+                category TEXT DEFAULT 'neutral',
+                window_title TEXT,
+                synced INTEGER DEFAULT 0
+            )
+        ''')
+
+        # Table for daily aggregates
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_productivity (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT UNIQUE NOT NULL,
+                productive_seconds INTEGER DEFAULT 0,
+                unproductive_seconds INTEGER DEFAULT 0,
+                neutral_seconds INTEGER DEFAULT 0,
+                communication_seconds INTEGER DEFAULT 0,
+                idle_seconds INTEGER DEFAULT 0,
+                first_activity TEXT,
+                last_activity TEXT,
+                productivity_score REAL,
+                synced INTEGER DEFAULT 0
+            )
+        ''')
+
+        conn.commit()
+        conn.close()
+
+    def get_foreground_app(self) -> Optional[Dict]:
+        """Get the currently focused application"""
+        try:
+            script = '''
+            tell application "System Events"
+                set frontApp to first application process whose frontmost is true
+                set appName to name of frontApp
+                set bundleId to bundle identifier of frontApp
+                try
+                    set winTitle to name of front window of frontApp
+                on error
+                    set winTitle to ""
+                end try
+                return appName & "|||" & bundleId & "|||" & winTitle
+            end tell
+            '''
+
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0:
+                parts = result.stdout.strip().split("|||")
+                if len(parts) >= 2:
+                    app_name = parts[0].strip()
+                    bundle_id = parts[1].strip() if parts[1] != "missing value" else ""
+                    window_title = parts[2].strip() if len(parts) > 2 and parts[2] != "missing value" else ""
+
+                    # Get proper display name
+                    display_name = get_app_display_name(app_name, bundle_id)
+
+                    return {
+                        "app_name": display_name,
+                        "bundle_id": bundle_id,
+                        "window_title": window_title,
+                        "category": get_app_category(bundle_id)
+                    }
+
+        except Exception as e:
+            log(f"Error getting foreground app: {e}")
+
+        return None
+
+    def update_focus(self):
+        """Update focus tracking - call this regularly"""
+        now = datetime.now()
+        is_idle = IdleDetector.is_idle()
+
+        if is_idle:
+            # User is idle - save current session and record idle time
+            if self.current_app and self.focus_start_time:
+                duration = int((now - self.focus_start_time).total_seconds())
+                if duration > 0:
+                    self._save_session(
+                        self.current_app["app_name"],
+                        self.current_app["bundle_id"],
+                        self.current_app["category"],
+                        self.current_app.get("window_title", ""),
+                        self.focus_start_time,
+                        now,
+                        duration
+                    )
+                    self._update_daily_stats(self.current_app["category"], duration)
+
+                self.current_app = None
+                self.focus_start_time = None
+
+            # Record idle time
+            self._update_daily_stats("idle", FOCUS_CHECK_INTERVAL)
+            return
+
+        # Not idle - check foreground app
+        foreground = self.get_foreground_app()
+
+        if not foreground:
+            return
+
+        # Check if app changed
+        app_changed = (
+            self.current_app is None or
+            foreground["bundle_id"] != self.current_app.get("bundle_id") or
+            foreground["window_title"] != self.current_app.get("window_title", "")
+        )
+
+        if app_changed:
+            # Save previous session
+            if self.current_app and self.focus_start_time:
+                duration = int((now - self.focus_start_time).total_seconds())
+                if duration > 0:
+                    self._save_session(
+                        self.current_app["app_name"],
+                        self.current_app["bundle_id"],
+                        self.current_app["category"],
+                        self.current_app.get("window_title", ""),
+                        self.focus_start_time,
+                        now,
+                        duration
+                    )
+                    self._update_daily_stats(self.current_app["category"], duration)
+
+            # Start new session
+            self.current_app = foreground
+            self.focus_start_time = now
+            log(f"Focus: {foreground['app_name']} ({foreground['category']})")
+
+    def _save_session(self, app_name: str, bundle_id: str, category: str,
+                      window_title: str, start_time: datetime, end_time: datetime, duration: int):
+        """Save a foreground session to database"""
         try:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS productivity_daily (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT UNIQUE NOT NULL,
-                    productive_seconds INTEGER DEFAULT 0,
-                    unproductive_seconds INTEGER DEFAULT 0,
-                    neutral_seconds INTEGER DEFAULT 0,
-                    communication_seconds INTEGER DEFAULT 0,
-                    idle_seconds INTEGER DEFAULT 0,
-                    total_active_seconds INTEGER DEFAULT 0,
-                    productivity_score REAL,
-                    login_count INTEGER DEFAULT 0,
-                    first_login TEXT,
-                    last_activity TEXT,
-                    top_apps TEXT,
-                    synced INTEGER DEFAULT 0
-                )
-            ''')
+                INSERT INTO foreground_sessions
+                (app_name, bundle_id, start_time, end_time, duration_seconds, category, window_title)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                app_name,
+                bundle_id,
+                start_time.isoformat(),
+                end_time.isoformat(),
+                duration,
+                category,
+                window_title
+            ))
 
             conn.commit()
             conn.close()
 
         except Exception as e:
-            log(f"Error creating productivity table: {e}")
+            log(f"Error saving session: {e}")
 
-    def get_app_category(self, bundle_id: str) -> str:
-        """Get productivity category for an app"""
-        if not bundle_id:
-            return "neutral"
-
-        if bundle_id in PRODUCTIVE_APPS:
-            return "productive"
-        elif bundle_id in UNPRODUCTIVE_APPS:
-            return "unproductive"
-        elif bundle_id in COMMUNICATION_APPS:
-            return "communication"
-        else:
-            return "neutral"
-
-    def update_daily_stats(self, bundle_id: str, duration_seconds: int, is_idle: bool = False):
+    def _update_daily_stats(self, category: str, duration_seconds: int):
         """Update daily productivity statistics"""
         try:
             today = datetime.now().strftime("%Y-%m-%d")
-            category = self.get_app_category(bundle_id) if not is_idle else "idle"
+            now = datetime.now().isoformat()
 
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
             # Check if today's record exists
-            cursor.execute('SELECT id FROM productivity_daily WHERE date = ?', (today,))
+            cursor.execute('SELECT id FROM daily_productivity WHERE date = ?', (today,))
             row = cursor.fetchone()
 
             if row:
                 # Update existing record
-                if category == "productive":
-                    cursor.execute('UPDATE productivity_daily SET productive_seconds = productive_seconds + ? WHERE date = ?',
-                                 (duration_seconds, today))
-                elif category == "unproductive":
-                    cursor.execute('UPDATE productivity_daily SET unproductive_seconds = unproductive_seconds + ? WHERE date = ?',
-                                 (duration_seconds, today))
-                elif category == "communication":
-                    cursor.execute('UPDATE productivity_daily SET communication_seconds = communication_seconds + ? WHERE date = ?',
-                                 (duration_seconds, today))
-                elif category == "idle":
-                    cursor.execute('UPDATE productivity_daily SET idle_seconds = idle_seconds + ? WHERE date = ?',
-                                 (duration_seconds, today))
-                else:
-                    cursor.execute('UPDATE productivity_daily SET neutral_seconds = neutral_seconds + ? WHERE date = ?',
-                                 (duration_seconds, today))
-
-                # Update total active time (non-idle)
-                if not is_idle:
-                    cursor.execute('UPDATE productivity_daily SET total_active_seconds = total_active_seconds + ? WHERE date = ?',
-                                 (duration_seconds, today))
-
-                # Update last activity
-                cursor.execute('UPDATE productivity_daily SET last_activity = ? WHERE date = ?',
-                             (datetime.now().isoformat(), today))
-
+                column = f"{category}_seconds"
+                cursor.execute(
+                    f'UPDATE daily_productivity SET {column} = {column} + ?, last_activity = ?, synced = 0 WHERE date = ?',
+                    (duration_seconds, now, today)
+                )
             else:
-                # Create new record for today
+                # Create new record
                 cursor.execute('''
-                    INSERT INTO productivity_daily (date, productive_seconds, unproductive_seconds, neutral_seconds,
-                                                   communication_seconds, idle_seconds, total_active_seconds,
-                                                   first_login, last_activity)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO daily_productivity
+                    (date, productive_seconds, unproductive_seconds, neutral_seconds, communication_seconds, idle_seconds, first_activity, last_activity)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     today,
                     duration_seconds if category == "productive" else 0,
@@ -259,9 +393,8 @@ class ProductivityTracker:
                     duration_seconds if category == "neutral" else 0,
                     duration_seconds if category == "communication" else 0,
                     duration_seconds if category == "idle" else 0,
-                    duration_seconds if not is_idle else 0,
-                    datetime.now().isoformat(),
-                    datetime.now().isoformat()
+                    now,
+                    now
                 ))
 
             conn.commit()
@@ -270,8 +403,8 @@ class ProductivityTracker:
         except Exception as e:
             log(f"Error updating daily stats: {e}")
 
-    def calculate_productivity_score(self, date: str = None) -> Dict:
-        """Calculate productivity score for a given date"""
+    def calculate_productivity_score(self, date: str = None) -> float:
+        """Calculate productivity score for a date (0-100)"""
         try:
             if not date:
                 date = datetime.now().strftime("%Y-%m-%d")
@@ -280,195 +413,300 @@ class ProductivityTracker:
             cursor = conn.cursor()
 
             cursor.execute('''
-                SELECT productive_seconds, unproductive_seconds, neutral_seconds,
-                       communication_seconds, idle_seconds, total_active_seconds,
-                       first_login, last_activity
-                FROM productivity_daily WHERE date = ?
+                SELECT productive_seconds, unproductive_seconds, neutral_seconds, communication_seconds
+                FROM daily_productivity WHERE date = ?
             ''', (date,))
 
             row = cursor.fetchone()
             conn.close()
 
             if not row:
-                return {"date": date, "score": None, "message": "No data for this date"}
+                return 0
 
-            productive, unproductive, neutral, communication, idle, total_active, first_login, last_activity = row
+            productive, unproductive, neutral, communication = row
 
-            # Calculate score: weighted average
-            # Productive: +1.0, Communication: +0.5, Neutral: 0, Unproductive: -1.0
+            # Calculate total active time (excluding idle)
+            total_active = productive + unproductive + neutral + communication
+
             if total_active == 0:
-                score = 0
-            else:
-                weighted = (productive * 1.0) + (communication * 0.5) + (neutral * 0) + (unproductive * -0.5)
-                # Normalize to 0-100 scale
-                max_possible = total_active * 1.0
-                min_possible = total_active * -0.5
-                if max_possible - min_possible == 0:
-                    score = 50
-                else:
-                    score = ((weighted - min_possible) / (max_possible - min_possible)) * 100
+                return 0
 
-            score = round(max(0, min(100, score)), 2)
+            # Score calculation:
+            # Productive: full weight
+            # Communication: half weight (can be productive or not)
+            # Neutral: zero weight
+            # Unproductive: negative weight
 
-            # Update score in database
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute('UPDATE productivity_daily SET productivity_score = ? WHERE date = ?', (score, date))
-            conn.commit()
-            conn.close()
+            weighted_score = (
+                (productive * 1.0) +
+                (communication * 0.5) +
+                (neutral * 0.0) +
+                (unproductive * -0.5)
+            )
 
-            return {
-                "date": date,
-                "score": score,
-                "productive_seconds": productive,
-                "unproductive_seconds": unproductive,
-                "neutral_seconds": neutral,
-                "communication_seconds": communication,
-                "idle_seconds": idle,
-                "total_active_seconds": total_active,
-                "first_login": first_login,
-                "last_activity": last_activity,
-                "breakdown": {
-                    "productive": self._format_duration(productive),
-                    "unproductive": self._format_duration(unproductive),
-                    "neutral": self._format_duration(neutral),
-                    "communication": self._format_duration(communication),
-                    "idle": self._format_duration(idle),
-                    "total_active": self._format_duration(total_active)
-                }
-            }
+            # Normalize to 0-100
+            max_possible = total_active * 1.0
+            min_possible = total_active * -0.5
+
+            if max_possible == min_possible:
+                return 50
+
+            score = ((weighted_score - min_possible) / (max_possible - min_possible)) * 100
+            return round(max(0, min(100, score)), 2)
 
         except Exception as e:
             log(f"Error calculating productivity score: {e}")
-            return {"error": str(e)}
+            return 0
 
-    def _format_duration(self, seconds: int) -> str:
-        """Format duration in human-readable format"""
-        if seconds < 60:
-            return f"{seconds}s"
-        elif seconds < 3600:
-            return f"{seconds // 60}m {seconds % 60}s"
-        else:
-            hours = seconds // 3600
-            minutes = (seconds % 3600) // 60
-            return f"{hours}h {minutes}m"
 
-    def get_weekly_summary(self) -> Dict:
-        """Get productivity summary for the last 7 days"""
+class SupabaseSyncer:
+    """Syncs data to Supabase"""
+
+    def __init__(self, db_path: Path, config: dict):
+        self.db_path = db_path
+        self.config = config
+        self.supabase_config = config.get("supabase", {})
+
+    def sync_all(self):
+        """Sync all unsynced data to Supabase"""
+        if not self._is_configured():
+            return
+
+        self._sync_foreground_sessions()
+        self._sync_daily_productivity()
+
+    def _is_configured(self) -> bool:
+        """Check if Supabase is configured"""
+        return bool(
+            self.supabase_config.get("url") and
+            self.supabase_config.get("device_id")
+        )
+
+    def _sync_foreground_sessions(self):
+        """Sync foreground sessions to app_usage table"""
         try:
+            from supabase_client import SupabaseClient
+
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
-            since_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-
             cursor.execute('''
-                SELECT date, productivity_score, productive_seconds, unproductive_seconds, total_active_seconds
-                FROM productivity_daily
-                WHERE date >= ?
-                ORDER BY date DESC
-            ''', (since_date,))
+                SELECT id, app_name, bundle_id, start_time, end_time, duration_seconds, category, window_title
+                FROM foreground_sessions
+                WHERE synced = 0
+                ORDER BY start_time ASC
+                LIMIT 100
+            ''')
 
             rows = cursor.fetchall()
-            conn.close()
 
-            days = []
-            total_score = 0
-            valid_days = 0
+            if not rows:
+                conn.close()
+                return
+
+            client = SupabaseClient(
+                url=self.supabase_config["url"],
+                anon_key=self.supabase_config.get("anon_key", ""),
+                service_key=self.supabase_config.get("service_key", self.supabase_config.get("anon_key", ""))
+            )
+
+            synced_ids = []
+            device_id = self.supabase_config["device_id"]
 
             for row in rows:
-                date, score, productive, unproductive, total = row
-                days.append({
-                    "date": date,
-                    "score": score,
-                    "productive_hours": round(productive / 3600, 1) if productive else 0,
-                    "unproductive_hours": round(unproductive / 3600, 1) if unproductive else 0,
-                    "total_hours": round(total / 3600, 1) if total else 0
-                })
-                if score is not None:
-                    total_score += score
-                    valid_days += 1
+                session_id, app_name, bundle_id, start_time, end_time, duration, category, window_title = row
 
-            avg_score = round(total_score / valid_days, 2) if valid_days > 0 else None
+                try:
+                    client._request(
+                        "POST",
+                        "/rest/v1/app_usage",
+                        {
+                            "device_id": device_id,
+                            "app_name": app_name,
+                            "bundle_id": bundle_id,
+                            "launched_at": start_time,
+                            "terminated_at": end_time,
+                            "duration_seconds": duration,
+                            "category": category,
+                            "window_title": window_title
+                        },
+                        use_service_key=True
+                    )
+                    synced_ids.append(session_id)
 
-            return {
-                "period": "last_7_days",
-                "average_score": avg_score,
-                "days": days,
-                "total_days_tracked": len(days),
-                "generated_at": datetime.now().isoformat()
-            }
+                except Exception as e:
+                    log(f"Error syncing session {session_id}: {e}")
+
+            if synced_ids:
+                cursor.execute(
+                    f'UPDATE foreground_sessions SET synced = 1 WHERE id IN ({",".join("?" * len(synced_ids))})',
+                    synced_ids
+                )
+                conn.commit()
+                log(f"Synced {len(synced_ids)} foreground sessions")
+
+            conn.close()
 
         except Exception as e:
-            log(f"Error getting weekly summary: {e}")
-            return {"error": str(e)}
+            log(f"Error in foreground sync: {e}")
 
-    def sync_to_supabase(self, device_id: str, client):
-        """Sync productivity data to Supabase"""
+    def _sync_daily_productivity(self):
+        """Sync daily productivity to productivity_scores table"""
         try:
+            from supabase_client import SupabaseClient
+
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
             cursor.execute('''
-                SELECT date, productivity_score, productive_seconds, unproductive_seconds,
-                       neutral_seconds, idle_seconds, total_active_seconds, login_count,
-                       first_login, last_activity
-                FROM productivity_daily
+                SELECT date, productive_seconds, unproductive_seconds, neutral_seconds,
+                       communication_seconds, idle_seconds, first_activity, last_activity
+                FROM daily_productivity
                 WHERE synced = 0
             ''')
 
             rows = cursor.fetchall()
 
+            if not rows:
+                conn.close()
+                return
+
+            client = SupabaseClient(
+                url=self.supabase_config["url"],
+                anon_key=self.supabase_config.get("anon_key", ""),
+                service_key=self.supabase_config.get("service_key", self.supabase_config.get("anon_key", ""))
+            )
+
+            device_id = self.supabase_config["device_id"]
             synced_dates = []
+
             for row in rows:
-                date, score, productive, unproductive, neutral, idle, total, logins, first, last = row
+                date, productive, unproductive, neutral, communication, idle, first_activity, last_activity = row
+
+                # Calculate score
+                total_active = productive + unproductive + neutral + communication
+                if total_active > 0:
+                    weighted = (productive * 1.0) + (communication * 0.5) + (unproductive * -0.5)
+                    max_p = total_active * 1.0
+                    min_p = total_active * -0.5
+                    score = ((weighted - min_p) / (max_p - min_p)) * 100 if max_p != min_p else 50
+                    score = round(max(0, min(100, score)), 2)
+                else:
+                    score = 0
+
+                # Extract just time from datetime for TIME columns
+                first_time = None
+                last_time = None
+                if first_activity:
+                    try:
+                        first_time = first_activity.split('T')[1].split('.')[0] if 'T' in first_activity else first_activity
+                    except:
+                        first_time = None
+                if last_activity:
+                    try:
+                        last_time = last_activity.split('T')[1].split('.')[0] if 'T' in last_activity else last_activity
+                    except:
+                        last_time = None
 
                 try:
-                    # Upsert to productivity_scores table
-                    client._request(
-                        "POST",
-                        "/rest/v1/productivity_scores",
-                        {
+                    # Try to upsert to productivity_scores (use PATCH for existing, POST for new)
+                    # First check if exists
+                    try:
+                        existing = client._request(
+                            "GET",
+                            f"/rest/v1/productivity_scores?device_id=eq.{device_id}&date=eq.{date}",
+                            use_service_key=True
+                        )
+                        if existing and len(existing) > 0:
+                            # Update existing
+                            update_data = {
+                                "productivity_score": score,
+                                "productive_seconds": productive,
+                                "unproductive_seconds": unproductive,
+                                "idle_seconds": idle,
+                            }
+                            if first_time:
+                                update_data["first_login"] = first_time
+                            if last_time:
+                                update_data["last_activity"] = last_time
+
+                            client._request(
+                                "PATCH",
+                                f"/rest/v1/productivity_scores?device_id=eq.{device_id}&date=eq.{date}",
+                                update_data,
+                                use_service_key=True
+                            )
+                        else:
+                            # Insert new
+                            insert_data = {
+                                "device_id": device_id,
+                                "date": date,
+                                "productivity_score": score,
+                                "productive_seconds": productive,
+                                "unproductive_seconds": unproductive,
+                                "idle_seconds": idle,
+                            }
+                            if first_time:
+                                insert_data["first_login"] = first_time
+                            if last_time:
+                                insert_data["last_activity"] = last_time
+
+                            client._request(
+                                "POST",
+                                "/rest/v1/productivity_scores",
+                                insert_data,
+                                use_service_key=True
+                            )
+                    except Exception:
+                        # If check fails, try insert
+                        insert_data = {
                             "device_id": device_id,
                             "date": date,
                             "productivity_score": score,
                             "productive_seconds": productive,
                             "unproductive_seconds": unproductive,
-                            "neutral_seconds": neutral,
                             "idle_seconds": idle,
-                            "total_active_seconds": total,
-                            "login_count": logins,
-                            "first_login": first,
-                            "last_activity": last
-                        },
-                        use_service_key=True,
-                        headers={"Prefer": "resolution=merge-duplicates"}
-                    )
+                        }
+                        if first_time:
+                            insert_data["first_login"] = first_time
+                        if last_time:
+                            insert_data["last_activity"] = last_time
+
+                        client._request(
+                            "POST",
+                            "/rest/v1/productivity_scores",
+                            insert_data,
+                            use_service_key=True
+                        )
                     synced_dates.append(date)
+
                 except Exception as e:
                     log(f"Error syncing date {date}: {e}")
 
             if synced_dates:
-                placeholders = ",".join("?" * len(synced_dates))
-                cursor.execute(f'UPDATE productivity_daily SET synced = 1 WHERE date IN ({placeholders})', synced_dates)
+                cursor.execute(
+                    f'UPDATE daily_productivity SET synced = 1 WHERE date IN ({",".join("?" * len(synced_dates))})',
+                    synced_dates
+                )
                 conn.commit()
                 log(f"Synced {len(synced_dates)} days of productivity data")
 
             conn.close()
 
         except Exception as e:
-            log(f"Error in productivity sync: {e}")
+            log(f"Error in daily productivity sync: {e}")
 
 
 class AppTracker:
-    """Tracks application usage"""
+    """Main application tracker"""
 
     def __init__(self):
         self.base_dir = get_base_dir()
         self.config = self._load_config()
         self.db_path = self.base_dir / "app_usage.db"
-        self.active_apps: Dict[str, AppSession] = {}
+        self.foreground_tracker = ForegroundTracker(self.db_path)
+        self.syncer = SupabaseSyncer(self.db_path, self.config)
         self.last_sync_time = datetime.now()
-        self._init_database()
 
     def _load_config(self) -> dict:
         """Load configuration from file"""
@@ -481,354 +719,32 @@ class AppTracker:
                 log(f"Error loading config: {e}")
         return {}
 
-    def _init_database(self):
-        """Initialize local SQLite database"""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS app_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                app_name TEXT NOT NULL,
-                bundle_id TEXT,
-                launched_at TEXT NOT NULL,
-                terminated_at TEXT,
-                duration_seconds INTEGER,
-                synced INTEGER DEFAULT 0
-            )
-        ''')
-
-        conn.commit()
-        conn.close()
-        log("Database initialized")
-
-    def get_running_apps(self) -> List[Dict]:
-        """Get list of currently running applications"""
-        apps = []
-
-        try:
-            # Use AppleScript to get running apps
-            script = '''
-            tell application "System Events"
-                set appList to {}
-                repeat with p in (every process whose background only is false)
-                    set appName to name of p
-                    set bundleId to bundle identifier of p
-                    set end of appList to appName & "|||" & bundleId
-                end repeat
-                return appList
-            end tell
-            '''
-
-            result = subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-
-            if result.returncode == 0:
-                app_strings = result.stdout.strip().split(", ")
-                for app_str in app_strings:
-                    parts = app_str.split("|||")
-                    if len(parts) >= 2:
-                        apps.append({
-                            "app_name": parts[0].strip(),
-                            "bundle_id": parts[1].strip() if parts[1] != "missing value" else ""
-                        })
-
-        except subprocess.TimeoutExpired:
-            log("Timeout getting running apps")
-        except Exception as e:
-            log(f"Error getting running apps: {e}")
-
-        return apps
-
-    def track_app_changes(self):
-        """Track app launches and terminations"""
-        current_apps = self.get_running_apps()
-        current_bundles = {app["bundle_id"]: app for app in current_apps if app.get("bundle_id")}
-
-        # Check for new apps
-        for bundle_id, app_info in current_bundles.items():
-            if bundle_id and bundle_id not in self.active_apps:
-                session = AppSession(
-                    app_name=app_info["app_name"],
-                    bundle_id=bundle_id,
-                    launched_at=datetime.now()
-                )
-                self.active_apps[bundle_id] = session
-                log(f"App launched: {app_info['app_name']}")
-
-                # Check for suspicious apps
-                self._check_suspicious_app(app_info)
-
-        # Check for terminated apps
-        terminated = []
-        for bundle_id, session in self.active_apps.items():
-            if bundle_id not in current_bundles:
-                session.terminated_at = datetime.now()
-                terminated.append(bundle_id)
-                self._save_session(session)
-                log(f"App terminated: {session.app_name} (duration: {session.duration_seconds}s)")
-
-        # Remove terminated apps from active tracking
-        for bundle_id in terminated:
-            del self.active_apps[bundle_id]
-
-    def _check_suspicious_app(self, app_info: Dict):
-        """Check if an app launch is suspicious"""
-        suspicious_apps = [
-            "Terminal",
-            "iTerm",
-            "Remote Desktop",
-            "TeamViewer",
-            "AnyDesk",
-            "VNC Viewer",
-            "Screen Sharing"
-        ]
-
-        # Check current hour
-        current_hour = datetime.now().hour
-        is_unusual_time = current_hour < 6 or current_hour > 23
-
-        app_name = app_info.get("app_name", "")
-
-        if app_name in suspicious_apps and is_unusual_time:
-            log(f"SUSPICIOUS: {app_name} opened at unusual time!")
-            self._trigger_suspicious_alert(app_info)
-
-    def _trigger_suspicious_alert(self, app_info: Dict):
-        """Trigger alert for suspicious app usage"""
-        try:
-            from supabase_client import SupabaseClient
-
-            config = self._load_config()
-            supabase_config = config.get("supabase", {})
-
-            if supabase_config.get("url") and supabase_config.get("device_id"):
-                client = SupabaseClient(
-                    url=supabase_config["url"],
-                    anon_key=supabase_config.get("anon_key", ""),
-                    service_key=supabase_config.get("service_key", supabase_config.get("anon_key", ""))
-                )
-
-                event_data = {
-                    "event_type": "SuspiciousApp",
-                    "activity": {
-                        "app_name": app_info.get("app_name"),
-                        "bundle_id": app_info.get("bundle_id"),
-                        "hour": datetime.now().hour,
-                        "reason": "Unusual time of use"
-                    },
-                    "timestamp": datetime.now().isoformat()
-                }
-
-                client.send_event(
-                    device_id=supabase_config["device_id"],
-                    event_data=event_data
-                )
-
-        except Exception as e:
-            log(f"Error triggering suspicious alert: {e}")
-
-    def _save_session(self, session: AppSession):
-        """Save a completed session to local database"""
-        try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                INSERT INTO app_sessions (app_name, bundle_id, launched_at, terminated_at, duration_seconds)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                session.app_name,
-                session.bundle_id,
-                session.launched_at.isoformat(),
-                session.terminated_at.isoformat() if session.terminated_at else None,
-                session.duration_seconds
-            ))
-
-            conn.commit()
-            conn.close()
-
-        except Exception as e:
-            log(f"Error saving session: {e}")
-
-    def sync_to_supabase(self):
-        """Sync unsynced sessions to Supabase"""
-        try:
-            from supabase_client import SupabaseClient
-
-            config = self._load_config()
-            supabase_config = config.get("supabase", {})
-
-            if not supabase_config.get("url") or not supabase_config.get("device_id"):
-                return
-
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            cursor.execute('SELECT * FROM app_sessions WHERE synced = 0 LIMIT 50')
-            rows = cursor.fetchall()
-
-            if not rows:
-                conn.close()
-                return
-
-            client = SupabaseClient(
-                url=supabase_config["url"],
-                anon_key=supabase_config.get("anon_key", ""),
-                service_key=supabase_config.get("service_key", supabase_config.get("anon_key", ""))
-            )
-
-            synced_ids = []
-
-            for row in rows:
-                session_id, app_name, bundle_id, launched_at, terminated_at, duration, _ = row
-
-                # Determine category from bundle_id
-                category = "neutral"
-                if bundle_id:
-                    if bundle_id in PRODUCTIVE_APPS:
-                        category = "productive"
-                    elif bundle_id in UNPRODUCTIVE_APPS:
-                        category = "unproductive"
-                    elif bundle_id in COMMUNICATION_APPS:
-                        category = "communication"
-
-                try:
-                    # Insert into Supabase app_usage table
-                    client._request(
-                        "POST",
-                        "/rest/v1/app_usage",
-                        {
-                            "device_id": supabase_config["device_id"],
-                            "app_name": app_name,
-                            "bundle_id": bundle_id,
-                            "launched_at": launched_at,
-                            "terminated_at": terminated_at,
-                            "duration_seconds": duration,
-                            "category": category
-                        },
-                        use_service_key=True
-                    )
-                    synced_ids.append(session_id)
-
-                except Exception as e:
-                    log(f"Error syncing session {session_id}: {e}")
-
-            # Mark as synced
-            if synced_ids:
-                cursor.execute(
-                    f'UPDATE app_sessions SET synced = 1 WHERE id IN ({",".join("?" * len(synced_ids))})',
-                    synced_ids
-                )
-                conn.commit()
-                log(f"Synced {len(synced_ids)} app sessions to Supabase")
-
-            conn.close()
-
-        except Exception as e:
-            log(f"Error in sync: {e}")
-
-    def get_usage_summary(self, hours: int = 24) -> Dict:
-        """Get app usage summary for the last N hours"""
-        try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            since_time = (datetime.now() - timedelta(hours=hours)).isoformat()
-
-            cursor.execute('''
-                SELECT app_name, SUM(duration_seconds) as total_duration, COUNT(*) as sessions
-                FROM app_sessions
-                WHERE launched_at >= ?
-                GROUP BY app_name
-                ORDER BY total_duration DESC
-                LIMIT 20
-            ''', (since_time,))
-
-            rows = cursor.fetchall()
-            conn.close()
-
-            apps = []
-            for row in rows:
-                app_name, total_duration, sessions = row
-                apps.append({
-                    "app_name": app_name,
-                    "total_duration_seconds": total_duration,
-                    "total_duration_formatted": self._format_duration(total_duration),
-                    "session_count": sessions
-                })
-
-            return {
-                "period_hours": hours,
-                "apps": apps,
-                "generated_at": datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            log(f"Error getting usage summary: {e}")
-            return {"error": str(e)}
-
-    def _format_duration(self, seconds: int) -> str:
-        """Format duration in human-readable format"""
-        if seconds < 60:
-            return f"{seconds}s"
-        elif seconds < 3600:
-            return f"{seconds // 60}m {seconds % 60}s"
-        else:
-            hours = seconds // 3600
-            minutes = (seconds % 3600) // 60
-            return f"{hours}h {minutes}m"
-
     def run(self):
         """Main tracking loop"""
         log("=" * 60)
-        log("APP TRACKER STARTED")
+        log("APP TRACKER STARTED (Foreground Mode)")
         log("=" * 60)
-
-        # Initial app scan
-        current_apps = self.get_running_apps()
-        log(f"Initial scan: {len(current_apps)} apps running")
-
-        for app in current_apps:
-            if app.get("bundle_id"):
-                session = AppSession(
-                    app_name=app["app_name"],
-                    bundle_id=app["bundle_id"],
-                    launched_at=datetime.now()
-                )
-                self.active_apps[app["bundle_id"]] = session
-
-        check_interval = 10  # Check every 10 seconds
 
         while True:
             try:
-                self.track_app_changes()
+                # Update foreground tracking
+                self.foreground_tracker.update_focus()
 
                 # Sync to Supabase periodically
                 if (datetime.now() - self.last_sync_time).total_seconds() >= SYNC_INTERVAL_SECONDS:
-                    self.sync_to_supabase()
+                    self.syncer.sync_all()
                     self.last_sync_time = datetime.now()
 
-                time.sleep(check_interval)
+                time.sleep(FOCUS_CHECK_INTERVAL)
 
             except KeyboardInterrupt:
                 log("App tracker stopped by user")
-
-                # Save active sessions on exit
-                for session in self.active_apps.values():
-                    session.terminated_at = datetime.now()
-                    self._save_session(session)
-
+                # Final sync
+                self.syncer.sync_all()
                 break
             except Exception as e:
                 log(f"Error in main loop: {e}")
-                time.sleep(check_interval)
+                time.sleep(FOCUS_CHECK_INTERVAL)
 
 
 def main():

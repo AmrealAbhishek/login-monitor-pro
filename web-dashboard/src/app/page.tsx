@@ -121,26 +121,26 @@ export default function Dashboard() {
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
       case 'Login':
-        return <Monitor className="w-4 h-4 text-green-400" />;
+        return <Monitor className="w-4 h-4 text-green-500 dark:text-green-400" />;
       case 'Unlock':
-        return <Shield className="w-4 h-4 text-blue-400" />;
+        return <Shield className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
       case 'Lock':
-        return <Shield className="w-4 h-4 text-[#666]" />;
+        return <Shield className="w-4 h-4 text-gray-400 dark:text-[#666]" />;
       default:
-        return <Activity className="w-4 h-4 text-[#666]" />;
+        return <Activity className="w-4 h-4 text-gray-400 dark:text-[#666]" />;
     }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return 'bg-red-500/20 text-red-400 border-red-500/50';
+        return 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/50';
       case 'high':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/50';
+        return 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/50';
       case 'medium':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+        return 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/50';
       default:
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
+        return 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/50';
     }
   };
 
@@ -151,7 +151,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
-          <p className="text-[#666]">Loading dashboard...</p>
+          <p className="text-gray-600 dark:text-[#666]">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -161,115 +161,115 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
           <Shield className="w-7 h-7 text-red-500" />
           Dashboard
         </h1>
-        <p className="text-[#666] mt-1">Overview of your security monitoring</p>
+        <p className="text-gray-600 dark:text-[#666] mt-1">Overview of your security monitoring</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Devices */}
-        <div className="neon-card p-6">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl p-6 shadow-sm border border-gray-200 dark:border-[#333]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[#666] uppercase tracking-wider">Total Devices</p>
-              <p className="text-3xl font-bold text-white mt-1">{stats.totalDevices}</p>
+              <p className="text-sm text-gray-500 dark:text-[#666] uppercase tracking-wider">Total Devices</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalDevices}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
-              <Monitor className="w-6 h-6 text-blue-400" />
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center">
+              <Monitor className="w-6 h-6 text-blue-500 dark:text-blue-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full pulse-online" />
-            <p className="text-sm text-green-400">{stats.onlineDevices} online</p>
+            <p className="text-sm text-green-600 dark:text-green-400">{stats.onlineDevices} online</p>
           </div>
         </div>
 
         {/* Today's Events */}
-        <div className="neon-card p-6">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl p-6 shadow-sm border border-gray-200 dark:border-[#333]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[#666] uppercase tracking-wider">Today&apos;s Events</p>
-              <p className="text-3xl font-bold text-white mt-1">{stats.todayEvents}</p>
+              <p className="text-sm text-gray-500 dark:text-[#666] uppercase tracking-wider">Today&apos;s Events</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.todayEvents}</p>
             </div>
-            <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-              <Activity className="w-6 h-6 text-green-400" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-500/20 rounded-xl flex items-center justify-center">
+              <Activity className="w-6 h-6 text-green-500 dark:text-green-400" />
             </div>
           </div>
-          <p className="text-sm text-[#666] mt-4 flex items-center gap-2">
+          <p className="text-sm text-gray-500 dark:text-[#666] mt-4 flex items-center gap-2">
             <Zap className="w-3 h-3" />
             Login & unlock events
           </p>
         </div>
 
         {/* Active Alerts */}
-        <div className={`neon-card p-6 ${stats.activeAlerts > 0 ? 'border-red-500/50' : ''}`}>
+        <div className={`bg-white dark:bg-[#1A1A1A] rounded-xl p-6 shadow-sm border ${stats.activeAlerts > 0 ? 'border-red-300 dark:border-red-500/50' : 'border-gray-200 dark:border-[#333]'}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[#666] uppercase tracking-wider">Active Alerts</p>
-              <p className="text-3xl font-bold text-white mt-1">{stats.activeAlerts}</p>
+              <p className="text-sm text-gray-500 dark:text-[#666] uppercase tracking-wider">Active Alerts</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.activeAlerts}</p>
             </div>
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              stats.activeAlerts > 0 ? 'bg-red-500/20' : 'bg-[#1A1A1A]'
+              stats.activeAlerts > 0 ? 'bg-red-100 dark:bg-red-500/20' : 'bg-gray-100 dark:bg-[#1A1A1A]'
             }`}>
-              <AlertTriangle className={`w-6 h-6 ${stats.activeAlerts > 0 ? 'text-red-500' : 'text-[#666]'}`} />
+              <AlertTriangle className={`w-6 h-6 ${stats.activeAlerts > 0 ? 'text-red-500' : 'text-gray-400 dark:text-[#666]'}`} />
             </div>
           </div>
-          <p className="text-sm text-[#666] mt-4">
+          <p className="text-sm text-gray-500 dark:text-[#666] mt-4">
             {stats.activeAlerts === 0 ? 'All clear' : 'Requires attention'}
           </p>
         </div>
 
         {/* Security Score */}
-        <div className={`neon-card p-6 ${securityScore === 100 ? 'neon-card-success' : ''}`}>
+        <div className={`bg-white dark:bg-[#1A1A1A] rounded-xl p-6 shadow-sm border ${securityScore === 100 ? 'border-green-300 dark:border-green-500/50' : 'border-gray-200 dark:border-[#333]'}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[#666] uppercase tracking-wider">Security Score</p>
+              <p className="text-sm text-gray-500 dark:text-[#666] uppercase tracking-wider">Security Score</p>
               <p className={`text-3xl font-bold mt-1 ${
-                securityScore === 100 ? 'text-green-400' :
-                securityScore >= 70 ? 'text-yellow-400' : 'text-red-500'
+                securityScore === 100 ? 'text-green-500 dark:text-green-400' :
+                securityScore >= 70 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500'
               }`}>{securityScore}%</p>
             </div>
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              securityScore === 100 ? 'bg-green-500/20' : 'bg-purple-500/20'
+              securityScore === 100 ? 'bg-green-100 dark:bg-green-500/20' : 'bg-purple-100 dark:bg-purple-500/20'
             }`}>
-              <TrendingUp className={`w-6 h-6 ${securityScore === 100 ? 'text-green-400' : 'text-purple-400'}`} />
+              <TrendingUp className={`w-6 h-6 ${securityScore === 100 ? 'text-green-500 dark:text-green-400' : 'text-purple-500 dark:text-purple-400'}`} />
             </div>
           </div>
-          <p className="text-sm text-[#666] mt-4">Based on active alerts</p>
+          <p className="text-sm text-gray-500 dark:text-[#666] mt-4">Based on active alerts</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Events */}
-        <div className="neon-card overflow-hidden">
-          <div className="p-4 border-b border-[#222] flex items-center justify-between">
-            <h2 className="font-semibold text-white flex items-center gap-2">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border border-gray-200 dark:border-[#333] overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-[#222] flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-red-500" />
               Recent Activity
             </h2>
-            <span className="text-xs text-[#666] bg-[#1A1A1A] px-2 py-1 rounded-lg">{stats.todayEvents} today</span>
+            <span className="text-xs text-gray-500 dark:text-[#666] bg-gray-100 dark:bg-[#222] px-2 py-1 rounded-lg">{stats.todayEvents} today</span>
           </div>
-          <div className="divide-y divide-[#1A1A1A] max-h-96 overflow-auto">
+          <div className="divide-y divide-gray-100 dark:divide-[#222] max-h-96 overflow-auto">
             {recentEvents.length === 0 ? (
               <div className="p-8 text-center">
-                <Activity className="w-10 h-10 text-[#222] mx-auto mb-3" />
-                <p className="text-[#666]">No events today</p>
+                <Activity className="w-10 h-10 text-gray-300 dark:text-[#333] mx-auto mb-3" />
+                <p className="text-gray-500 dark:text-[#666]">No events today</p>
               </div>
             ) : (
               recentEvents.map((event) => (
-                <div key={event.id} className="p-4 hover:bg-[#0D0D0D] transition-colors">
+                <div key={event.id} className="p-4 hover:bg-gray-50 dark:hover:bg-[#0D0D0D] transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 bg-[#1A1A1A] rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gray-100 dark:bg-[#222] rounded-lg flex items-center justify-center">
                       {getEventIcon(event.event_type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-white">
-                        {event.event_type} - <span className="text-[#AAA]">{event.hostname}</span>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {event.event_type} - <span className="text-gray-500 dark:text-[#AAA]">{event.hostname}</span>
                       </p>
-                      <div className="flex items-center gap-4 text-xs text-[#666] mt-1">
+                      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-[#666] mt-1">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}
@@ -290,48 +290,48 @@ export default function Dashboard() {
         </div>
 
         {/* Security Alerts */}
-        <div className={`neon-card overflow-hidden ${stats.activeAlerts > 0 ? 'border-red-500/30' : ''}`}>
-          <div className="p-4 border-b border-[#222] flex items-center justify-between">
-            <h2 className="font-semibold text-white flex items-center gap-2">
-              <AlertTriangle className={`w-5 h-5 ${stats.activeAlerts > 0 ? 'text-red-500' : 'text-[#666]'}`} />
+        <div className={`bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border overflow-hidden ${stats.activeAlerts > 0 ? 'border-red-300 dark:border-red-500/30' : 'border-gray-200 dark:border-[#333]'}`}>
+          <div className="p-4 border-b border-gray-200 dark:border-[#222] flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <AlertTriangle className={`w-5 h-5 ${stats.activeAlerts > 0 ? 'text-red-500' : 'text-gray-400 dark:text-[#666]'}`} />
               Security Alerts
             </h2>
             {stats.activeAlerts > 0 && (
-              <span className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/30">
+              <span className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/10 px-2 py-1 rounded-lg border border-red-200 dark:border-red-500/30">
                 {stats.activeAlerts} active
               </span>
             )}
           </div>
-          <div className="divide-y divide-[#1A1A1A] max-h-96 overflow-auto">
+          <div className="divide-y divide-gray-100 dark:divide-[#222] max-h-96 overflow-auto">
             {recentAlerts.length === 0 ? (
               <div className="p-8 text-center">
-                <Shield className="w-10 h-10 text-green-500/30 mx-auto mb-3" />
-                <p className="text-green-400">All clear - No active alerts</p>
+                <Shield className="w-10 h-10 text-green-200 dark:text-green-500/30 mx-auto mb-3" />
+                <p className="text-green-600 dark:text-green-400">All clear - No active alerts</p>
               </div>
             ) : (
               recentAlerts.map((alert) => (
-                <div key={alert.id} className="p-4 hover:bg-[#0D0D0D] transition-colors">
+                <div key={alert.id} className="p-4 hover:bg-gray-50 dark:hover:bg-[#0D0D0D] transition-colors">
                   <div className="flex items-start gap-4">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      alert.severity === 'critical' ? 'bg-red-500/20' :
-                      alert.severity === 'high' ? 'bg-orange-500/20' :
-                      alert.severity === 'medium' ? 'bg-yellow-500/20' : 'bg-blue-500/20'
+                      alert.severity === 'critical' ? 'bg-red-100 dark:bg-red-500/20' :
+                      alert.severity === 'high' ? 'bg-orange-100 dark:bg-orange-500/20' :
+                      alert.severity === 'medium' ? 'bg-yellow-100 dark:bg-yellow-500/20' : 'bg-blue-100 dark:bg-blue-500/20'
                     }`}>
                       <AlertTriangle className={`w-4 h-4 ${
                         alert.severity === 'critical' ? 'text-red-500' :
-                        alert.severity === 'high' ? 'text-orange-400' :
-                        alert.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                        alert.severity === 'high' ? 'text-orange-500 dark:text-orange-400' :
+                        alert.severity === 'medium' ? 'text-yellow-500 dark:text-yellow-400' : 'text-blue-500 dark:text-blue-400'
                       }`} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-white">{alert.title}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{alert.title}</p>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getSeverityColor(alert.severity)}`}>
                           {alert.severity}
                         </span>
                       </div>
-                      <p className="text-sm text-[#666] mt-1">{alert.description}</p>
-                      <p className="text-xs text-[#555] mt-2">
+                      <p className="text-sm text-gray-500 dark:text-[#666] mt-1">{alert.description}</p>
+                      <p className="text-xs text-gray-400 dark:text-[#555] mt-2">
                         {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
                       </p>
                     </div>
@@ -344,45 +344,47 @@ export default function Dashboard() {
       </div>
 
       {/* Devices List */}
-      <div className="neon-card overflow-hidden">
-        <div className="p-4 border-b border-[#222] flex items-center justify-between">
-          <h2 className="font-semibold text-white flex items-center gap-2">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border border-gray-200 dark:border-[#333] overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-[#222] flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Monitor className="w-5 h-5 text-red-500" />
             Devices
           </h2>
-          <span className="text-xs text-[#666] bg-[#1A1A1A] px-2 py-1 rounded-lg">
+          <span className="text-xs text-gray-500 dark:text-[#666] bg-gray-100 dark:bg-[#222] px-2 py-1 rounded-lg">
             {stats.onlineDevices}/{stats.totalDevices} online
           </span>
         </div>
-        <div className="divide-y divide-[#1A1A1A]">
+        <div className="divide-y divide-gray-100 dark:divide-[#222]">
           {devices.length === 0 ? (
             <div className="p-8 text-center">
-              <Monitor className="w-10 h-10 text-[#222] mx-auto mb-3" />
-              <p className="text-[#666]">No devices registered</p>
+              <Monitor className="w-10 h-10 text-gray-300 dark:text-[#333] mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-[#666]">No devices registered</p>
             </div>
           ) : (
             devices.slice(0, 5).map((device) => {
               const isOnline = new Date(device.last_seen) > new Date(Date.now() - 60 * 1000);
               return (
-                <div key={device.id} className="p-4 hover:bg-[#0D0D0D] transition-colors flex items-center justify-between">
+                <div key={device.id} className="p-4 hover:bg-gray-50 dark:hover:bg-[#0D0D0D] transition-colors flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      isOnline ? 'bg-green-500/20' : 'bg-[#1A1A1A]'
+                      isOnline ? 'bg-green-100 dark:bg-green-500/20' : 'bg-gray-100 dark:bg-[#222]'
                     }`}>
-                      <Monitor className={`w-5 h-5 ${isOnline ? 'text-green-400' : 'text-[#444]'}`} />
+                      <Monitor className={`w-5 h-5 ${isOnline ? 'text-green-500 dark:text-green-400' : 'text-gray-400 dark:text-[#444]'}`} />
                     </div>
                     <div>
-                      <p className="font-medium text-white">{device.hostname}</p>
-                      <p className="text-sm text-[#666]">{device.os_version}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{device.hostname}</p>
+                      <p className="text-sm text-gray-500 dark:text-[#666]">{device.os_version}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                      isOnline ? 'status-online' : 'status-offline'
+                      isOnline
+                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/50'
+                        : 'bg-gray-100 dark:bg-[#222] text-gray-500 dark:text-[#666] border-gray-200 dark:border-[#333]'
                     }`}>
                       {isOnline ? 'Online' : 'Offline'}
                     </span>
-                    <p className="text-xs text-[#555] mt-2">
+                    <p className="text-xs text-gray-400 dark:text-[#555] mt-2">
                       {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
                     </p>
                   </div>

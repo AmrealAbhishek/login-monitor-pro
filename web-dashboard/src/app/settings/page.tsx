@@ -132,11 +132,11 @@ export default function SettingsPage() {
   const getPlanBadge = (plan: string) => {
     switch (plan) {
       case 'enterprise':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-400';
       case 'pro':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-[#333] text-gray-800 dark:text-[#AAA]';
     }
   };
 
@@ -152,12 +152,12 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Manage organization and notification preferences</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+          <p className="text-gray-600 dark:text-[#888]">Manage organization and notification preferences</p>
         </div>
         <button
           onClick={saveSettings}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
         >
           {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
           {saved ? 'Saved!' : 'Save Changes'}
@@ -166,23 +166,23 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Organization */}
-        <div className="bg-white rounded-xl shadow-sm border">
-          <div className="p-4 border-b">
-            <h2 className="font-semibold flex items-center gap-2">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border border-gray-200 dark:border-[#333]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#333]">
+            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Building className="w-5 h-5" />
               Organization
             </h2>
           </div>
           <div className="p-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">
                 Organization Name
               </label>
               <input
                 type="text"
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
                 placeholder="My Organization"
               />
             </div>
@@ -190,7 +190,7 @@ export default function SettingsPage() {
             {org && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">
                     Organization ID
                   </label>
                   <div className="flex gap-2">
@@ -198,24 +198,24 @@ export default function SettingsPage() {
                       type="text"
                       value={org.id}
                       readOnly
-                      className="flex-1 px-3 py-2 border rounded-lg bg-gray-50 text-sm font-mono"
+                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-gray-50 dark:bg-[#111] text-sm font-mono text-gray-900 dark:text-white"
                     />
                     <button
                       onClick={copyApiKey}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="px-3 py-2 bg-gray-100 dark:bg-[#333] hover:bg-gray-200 dark:hover:bg-[#444] rounded-lg transition-colors text-gray-600 dark:text-[#AAA]"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-[#666] mt-1">
                     Use this ID when setting up devices
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg border border-gray-100 dark:border-[#222]">
                   <div>
-                    <p className="font-medium">Current Plan</p>
-                    <p className="text-sm text-gray-500">Access to all features</p>
+                    <p className="font-medium text-gray-900 dark:text-white">Current Plan</p>
+                    <p className="text-sm text-gray-500 dark:text-[#666]">Access to all features</p>
                   </div>
                   <span
                     className={`px-3 py-1 rounded-full text-sm font-medium ${getPlanBadge(
@@ -231,35 +231,35 @@ export default function SettingsPage() {
         </div>
 
         {/* Notifications */}
-        <div className="bg-white rounded-xl shadow-sm border">
-          <div className="p-4 border-b">
-            <h2 className="font-semibold flex items-center gap-2">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border border-gray-200 dark:border-[#333]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#333]">
+            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Bell className="w-5 h-5" />
               Notifications
             </h2>
           </div>
           <div className="p-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">
                 Report Recipients
               </label>
               <input
                 type="text"
                 value={emailRecipients}
                 onChange={(e) => setEmailRecipients(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
                 placeholder="admin@company.com, manager@company.com"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-[#666] mt-1">
                 Comma-separated email addresses for weekly reports
               </p>
             </div>
 
             <div className="space-y-3">
-              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+              <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg cursor-pointer border border-gray-100 dark:border-[#222]">
                 <div>
-                  <p className="font-medium">Security Alerts</p>
-                  <p className="text-sm text-gray-500">Get notified of security events</p>
+                  <p className="font-medium text-gray-900 dark:text-white">Security Alerts</p>
+                  <p className="text-sm text-gray-500 dark:text-[#666]">Get notified of security events</p>
                 </div>
                 <input
                   type="checkbox"
@@ -269,10 +269,10 @@ export default function SettingsPage() {
                 />
               </label>
 
-              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+              <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg cursor-pointer border border-gray-100 dark:border-[#222]">
                 <div>
-                  <p className="font-medium">Auto Screenshots</p>
-                  <p className="text-sm text-gray-500">Capture screenshots on events</p>
+                  <p className="font-medium text-gray-900 dark:text-white">Auto Screenshots</p>
+                  <p className="text-sm text-gray-500 dark:text-[#666]">Capture screenshots on events</p>
                 </div>
                 <input
                   type="checkbox"
@@ -282,10 +282,10 @@ export default function SettingsPage() {
                 />
               </label>
 
-              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+              <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg cursor-pointer border border-gray-100 dark:border-[#222]">
                 <div>
-                  <p className="font-medium">Location Tracking</p>
-                  <p className="text-sm text-gray-500">Track device locations</p>
+                  <p className="font-medium text-gray-900 dark:text-white">Location Tracking</p>
+                  <p className="text-sm text-gray-500 dark:text-[#666]">Track device locations</p>
                 </div>
                 <input
                   type="checkbox"
@@ -299,74 +299,74 @@ export default function SettingsPage() {
         </div>
 
         {/* Data Retention */}
-        <div className="bg-white rounded-xl shadow-sm border">
-          <div className="p-4 border-b">
-            <h2 className="font-semibold flex items-center gap-2">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border border-gray-200 dark:border-[#333]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#333]">
+            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Shield className="w-5 h-5" />
               Data Retention
             </h2>
           </div>
           <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg border border-gray-100 dark:border-[#222]">
               <div>
-                <p className="font-medium">Events</p>
-                <p className="text-sm text-gray-500">Login, unlock, and boot events</p>
+                <p className="font-medium text-gray-900 dark:text-white">Events</p>
+                <p className="text-sm text-gray-500 dark:text-[#666]">Login, unlock, and boot events</p>
               </div>
-              <span className="text-sm text-gray-600">90 days</span>
+              <span className="text-sm text-gray-600 dark:text-[#AAA]">90 days</span>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg border border-gray-100 dark:border-[#222]">
               <div>
-                <p className="font-medium">Screenshots</p>
-                <p className="text-sm text-gray-500">Captured images</p>
+                <p className="font-medium text-gray-900 dark:text-white">Screenshots</p>
+                <p className="text-sm text-gray-500 dark:text-[#666]">Captured images</p>
               </div>
-              <span className="text-sm text-gray-600">30 days</span>
+              <span className="text-sm text-gray-600 dark:text-[#AAA]">30 days</span>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg border border-gray-100 dark:border-[#222]">
               <div>
-                <p className="font-medium">Commands</p>
-                <p className="text-sm text-gray-500">Remote command history</p>
+                <p className="font-medium text-gray-900 dark:text-white">Commands</p>
+                <p className="text-sm text-gray-500 dark:text-[#666]">Remote command history</p>
               </div>
-              <span className="text-sm text-gray-600">30 days</span>
+              <span className="text-sm text-gray-600 dark:text-[#AAA]">30 days</span>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-lg border border-gray-100 dark:border-[#222]">
               <div>
-                <p className="font-medium">App Usage</p>
-                <p className="text-sm text-gray-500">Productivity tracking data</p>
+                <p className="font-medium text-gray-900 dark:text-white">App Usage</p>
+                <p className="text-sm text-gray-500 dark:text-[#666]">Productivity tracking data</p>
               </div>
-              <span className="text-sm text-gray-600">90 days</span>
+              <span className="text-sm text-gray-600 dark:text-[#AAA]">90 days</span>
             </div>
           </div>
         </div>
 
         {/* Danger Zone */}
-        <div className="bg-white rounded-xl shadow-sm border border-red-200">
-          <div className="p-4 border-b border-red-200 bg-red-50">
-            <h2 className="font-semibold flex items-center gap-2 text-red-800">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-sm border border-red-200 dark:border-red-500/30">
+          <div className="p-4 border-b border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10">
+            <h2 className="font-semibold flex items-center gap-2 text-red-800 dark:text-red-400">
               <Trash2 className="w-5 h-5" />
               Danger Zone
             </h2>
           </div>
           <div className="p-6 space-y-4">
-            <div className="p-4 border border-red-200 rounded-lg">
-              <h3 className="font-medium text-red-800">Delete All Data</h3>
-              <p className="text-sm text-gray-600 mt-1">
+            <div className="p-4 border border-red-200 dark:border-red-500/30 rounded-lg">
+              <h3 className="font-medium text-red-800 dark:text-red-400">Delete All Data</h3>
+              <p className="text-sm text-gray-600 dark:text-[#888] mt-1">
                 Permanently delete all events, commands, and device data. This action cannot be
                 undone.
               </p>
-              <button className="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium">
+              <button className="mt-3 px-4 py-2 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors text-sm font-medium">
                 Delete All Data
               </button>
             </div>
 
-            <div className="p-4 border border-red-200 rounded-lg">
-              <h3 className="font-medium text-red-800">Delete Organization</h3>
-              <p className="text-sm text-gray-600 mt-1">
+            <div className="p-4 border border-red-200 dark:border-red-500/30 rounded-lg">
+              <h3 className="font-medium text-red-800 dark:text-red-400">Delete Organization</h3>
+              <p className="text-sm text-gray-600 dark:text-[#888] mt-1">
                 Permanently delete this organization and all associated data.
               </p>
-              <button className="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium">
+              <button className="mt-3 px-4 py-2 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors text-sm font-medium">
                 Delete Organization
               </button>
             </div>

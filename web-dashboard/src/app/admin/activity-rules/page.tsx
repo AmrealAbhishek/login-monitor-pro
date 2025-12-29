@@ -235,7 +235,7 @@ export default function ActivityRulesPage() {
   function renderConfigEditor() {
     const ruleType = ruleTypes.find(t => t.value === formData.rule_type);
     if (!ruleType?.configFields.length) {
-      return <p className="text-sm text-gray-500">No additional configuration needed for this rule type.</p>;
+      return <p className="text-sm text-gray-500 dark:text-[#666]">No additional configuration needed for this rule type.</p>;
     }
 
     return (
@@ -243,25 +243,25 @@ export default function ActivityRulesPage() {
         {ruleType.configFields.includes('start_hour') && (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Hour</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">Start Hour</label>
               <input
                 type="number"
                 min="0"
                 max="23"
                 value={formData.config.start_hour as number || 0}
                 onChange={(e) => updateConfig('start_hour', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Hour</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">End Hour</label>
               <input
                 type="number"
                 min="0"
                 max="23"
                 value={formData.config.end_hour as number || 6}
                 onChange={(e) => updateConfig('end_hour', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
               />
             </div>
           </div>
@@ -275,57 +275,57 @@ export default function ActivityRulesPage() {
               onChange={(e) => updateConfig('weekends', e.target.checked)}
               className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
             />
-            <label className="text-sm text-gray-700">Include weekends</label>
+            <label className="text-sm text-gray-700 dark:text-[#AAA]">Include weekends</label>
           </div>
         )}
 
         {ruleType.configFields.includes('threshold') && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Threshold (operations)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">Threshold (operations)</label>
             <input
               type="number"
               min="1"
               value={formData.config.threshold as number || 50}
               onChange={(e) => updateConfig('threshold', parseInt(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
             />
           </div>
         )}
 
         {ruleType.configFields.includes('threshold_mb') && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Threshold (MB)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">Threshold (MB)</label>
             <input
               type="number"
               min="1"
               value={formData.config.threshold_mb as number || 100}
               onChange={(e) => updateConfig('threshold_mb', parseInt(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
             />
           </div>
         )}
 
         {ruleType.configFields.includes('window_minutes') && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Time Window (minutes)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">Time Window (minutes)</label>
             <input
               type="number"
               min="1"
               value={formData.config.window_minutes as number || 5}
               onChange={(e) => updateConfig('window_minutes', parseInt(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
             />
           </div>
         )}
 
         {ruleType.configFields.includes('apps') && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Applications (comma-separated)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-1">Applications (comma-separated)</label>
             <input
               type="text"
               value={(formData.config.apps as string[])?.join(', ') || ''}
               onChange={(e) => updateConfig('apps', e.target.value.split(',').map(s => s.trim()))}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white"
               placeholder="TeamViewer, AnyDesk, VNC Viewer"
             />
           </div>
@@ -340,7 +340,7 @@ export default function ActivityRulesPage() {
                 onChange={(e) => updateConfig('alert_on_connect', e.target.checked)}
                 className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
               />
-              <label className="text-sm text-gray-700">Alert on USB connect</label>
+              <label className="text-sm text-gray-700 dark:text-[#AAA]">Alert on USB connect</label>
             </div>
             <div className="flex items-center gap-3">
               <input
@@ -349,7 +349,7 @@ export default function ActivityRulesPage() {
                 onChange={(e) => updateConfig('alert_on_file_copy', e.target.checked)}
                 className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
               />
-              <label className="text-sm text-gray-700">Alert on file copy to USB</label>
+              <label className="text-sm text-gray-700 dark:text-[#AAA]">Alert on file copy to USB</label>
             </div>
           </div>
         )}
@@ -370,15 +370,15 @@ export default function ActivityRulesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <Activity className="w-7 h-7 text-red-500" />
             Suspicious Activity Rules
           </h1>
-          <p className="text-gray-600 mt-1">Configure rules to detect and respond to suspicious behavior</p>
+          <p className="text-gray-600 dark:text-[#888] mt-1">Configure rules to detect and respond to suspicious behavior</p>
         </div>
         <button
           onClick={() => { resetForm(); setEditingRule(null); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
         >
           <Plus className="w-5 h-5" />
           Add Rule
@@ -392,22 +392,22 @@ export default function ActivityRulesPage() {
           return (
             <div
               key={rule.id}
-              className={`bg-white rounded-xl border p-5 ${!rule.enabled ? 'opacity-50' : ''}`}
+              className={`bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-5 ${!rule.enabled ? 'opacity-50' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${rule.enabled ? 'bg-red-100' : 'bg-gray-100'}`}>
+                  <div className={`p-2 rounded-lg ${rule.enabled ? 'bg-red-100 dark:bg-red-500/20' : 'bg-gray-100 dark:bg-[#333]'}`}>
                     {getRuleIcon(rule.rule_type)}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{rule.name}</h3>
-                    <p className="text-sm text-gray-500">{ruleType?.label}</p>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{rule.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-[#666]">{ruleType?.label}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => toggleRule(rule.id, !rule.enabled)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    rule.enabled ? 'bg-green-500' : 'bg-gray-300'
+                    rule.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-[#444]'
                   }`}
                 >
                   <span
@@ -419,33 +419,33 @@ export default function ActivityRulesPage() {
               </div>
 
               {rule.description && (
-                <p className="text-sm text-gray-600 mt-3">{rule.description}</p>
+                <p className="text-sm text-gray-600 dark:text-[#888] mt-3">{rule.description}</p>
               )}
 
               <div className="flex items-center gap-2 mt-4">
                 {getSeverityBadge(rule.severity)}
                 {rule.auto_screenshot && (
-                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium flex items-center gap-1">
+                  <span className="px-2 py-1 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 rounded-full text-xs font-medium flex items-center gap-1">
                     <Camera className="w-3 h-3" /> Screenshot
                   </span>
                 )}
                 {rule.notify_immediately && (
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                  <span className="px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-full text-xs font-medium">
                     Instant
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-[#333]">
                 <button
                   onClick={() => openEdit(rule)}
-                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="p-2 text-gray-500 dark:text-[#666] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => deleteRule(rule.id)}
-                  className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-2 text-gray-500 dark:text-[#666] hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -455,12 +455,12 @@ export default function ActivityRulesPage() {
         })}
 
         {rules.length === 0 && (
-          <div className="col-span-full text-center py-12 bg-white rounded-xl border">
-            <Activity className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No activity rules configured</p>
+          <div className="col-span-full text-center py-12 bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333]">
+            <Activity className="w-12 h-12 text-gray-300 dark:text-[#444] mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-[#666]">No activity rules configured</p>
             <button
               onClick={() => { resetForm(); setShowModal(true); }}
-              className="mt-4 text-red-600 hover:text-red-700 font-medium"
+              className="mt-4 text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium"
             >
               Create your first rule
             </button>
@@ -470,15 +470,15 @@ export default function ActivityRulesPage() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl m-4 max-h-[90vh] overflow-auto">
-            <div className="p-6 border-b flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl w-full max-w-2xl m-4 max-h-[90vh] overflow-auto border border-gray-200 dark:border-[#333]">
+            <div className="p-6 border-b border-gray-200 dark:border-[#333] flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {editingRule ? 'Edit Activity Rule' : 'Add Activity Rule'}
               </h2>
               <button
                 onClick={() => { setShowModal(false); setEditingRule(null); }}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                className="p-2 text-gray-500 dark:text-[#666] hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#333] rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -487,31 +487,31 @@ export default function ActivityRulesPage() {
             <div className="p-6 space-y-6">
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rule Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-2">Rule Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   placeholder="e.g., After Hours Access Alert"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-2">Description (optional)</label>
                 <input
                   type="text"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#333] rounded-lg bg-white dark:bg-[#222] text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   placeholder="Brief description of this rule"
                 />
               </div>
 
               {/* Rule Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Detection Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-2">Detection Type</label>
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-auto">
                   {ruleTypes.map((type) => {
                     const Icon = type.icon;
@@ -521,13 +521,13 @@ export default function ActivityRulesPage() {
                         onClick={() => handleRuleTypeChange(type.value)}
                         className={`p-3 border rounded-lg text-left flex items-center gap-3 transition-colors ${
                           formData.rule_type === type.value
-                            ? 'border-red-500 bg-red-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-red-500 bg-red-50 dark:bg-red-500/10'
+                            : 'border-gray-200 dark:border-[#333] hover:border-gray-300 dark:hover:border-[#444]'
                         }`}
                       >
-                        <Icon className={`w-5 h-5 ${formData.rule_type === type.value ? 'text-red-500' : 'text-gray-400'}`} />
+                        <Icon className={`w-5 h-5 ${formData.rule_type === type.value ? 'text-red-500' : 'text-gray-400 dark:text-[#666]'}`} />
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{type.label}</p>
+                          <p className="font-medium text-gray-900 dark:text-white text-sm">{type.label}</p>
                         </div>
                       </button>
                     );
@@ -537,15 +537,15 @@ export default function ActivityRulesPage() {
 
               {/* Configuration */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Configuration</label>
-                <div className="bg-gray-50 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-2">Configuration</label>
+                <div className="bg-gray-50 dark:bg-[#111] p-4 rounded-lg border border-gray-100 dark:border-[#222]">
                   {renderConfigEditor()}
                 </div>
               </div>
 
               {/* Severity */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-2">Severity</label>
                 <div className="flex gap-3">
                   {severityOptions.map((sev) => (
                     <button
@@ -565,7 +565,7 @@ export default function ActivityRulesPage() {
 
               {/* Action */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Response Action</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-[#AAA] mb-2">Response Action</label>
                 <div className="grid grid-cols-2 gap-2">
                   {actionOptions.map((act) => {
                     const Icon = act.icon;
@@ -575,12 +575,12 @@ export default function ActivityRulesPage() {
                         onClick={() => setFormData({ ...formData, action: act.value as ActivityRule['action'] })}
                         className={`p-3 border rounded-lg text-left flex items-center gap-3 transition-colors ${
                           formData.action === act.value
-                            ? 'border-red-500 bg-red-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-red-500 bg-red-50 dark:bg-red-500/10'
+                            : 'border-gray-200 dark:border-[#333] hover:border-gray-300 dark:hover:border-[#444]'
                         }`}
                       >
-                        <Icon className={`w-5 h-5 ${formData.action === act.value ? 'text-red-500' : 'text-gray-400'}`} />
-                        <p className="font-medium text-gray-900 text-sm">{act.label}</p>
+                        <Icon className={`w-5 h-5 ${formData.action === act.value ? 'text-red-500' : 'text-gray-400 dark:text-[#666]'}`} />
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">{act.label}</p>
                       </button>
                     );
                   })}
@@ -596,7 +596,7 @@ export default function ActivityRulesPage() {
                     onChange={(e) => setFormData({ ...formData, auto_screenshot: e.target.checked })}
                     className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
                   />
-                  <label className="text-sm text-gray-700">Auto-capture screenshot on detection</label>
+                  <label className="text-sm text-gray-700 dark:text-[#AAA]">Auto-capture screenshot on detection</label>
                 </div>
                 <div className="flex items-center gap-3">
                   <input
@@ -605,13 +605,13 @@ export default function ActivityRulesPage() {
                     onChange={(e) => setFormData({ ...formData, notify_immediately: e.target.checked })}
                     className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
                   />
-                  <label className="text-sm text-gray-700">Send immediate push notification</label>
+                  <label className="text-sm text-gray-700 dark:text-[#AAA]">Send immediate push notification</label>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setFormData({ ...formData, enabled: !formData.enabled })}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      formData.enabled ? 'bg-green-500' : 'bg-gray-300'
+                      formData.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-[#444]'
                     }`}
                   >
                     <span
@@ -620,15 +620,15 @@ export default function ActivityRulesPage() {
                       }`}
                     />
                   </button>
-                  <label className="text-sm text-gray-700">Rule is active</label>
+                  <label className="text-sm text-gray-700 dark:text-[#AAA]">Rule is active</label>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
+            <div className="p-6 border-t border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#111] flex justify-end gap-3">
               <button
                 onClick={() => { setShowModal(false); setEditingRule(null); }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-[#AAA] hover:bg-gray-200 dark:hover:bg-[#333] rounded-lg transition-colors"
               >
                 Cancel
               </button>

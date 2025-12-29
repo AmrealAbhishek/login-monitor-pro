@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase, Device, Command } from '@/lib/supabase';
 import {
   Monitor,
@@ -36,6 +37,7 @@ import {
   Zap as ZapIcon,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { HackerLoader } from '@/components/HackerLoader';
 
 const COMMANDS = [
   { id: 'photo', label: 'Photo', icon: Camera, description: 'Capture photo' },
@@ -58,20 +60,30 @@ function getSignalStrength(rssi: string | number): { level: number; color: strin
 }
 
 // Component to render command results nicely
-function CommandResultDisplay({ command, result, resultUrl }: { command: string; result: Record<string, unknown>; resultUrl?: string }) {
+function CommandResultDisplay({ command, result, resultUrl }: { command: string; result: Record<string, unknown>; resultUrl?: string }): React.ReactNode {
+  const [showImage, setShowImage] = useState(false);
+
   if (!result || Object.keys(result).length === 0) {
     if (resultUrl) {
       return (
-        <a
-          href={resultUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 text-sm text-red-500 hover:text-red-400 transition-colors"
-        >
-          <Image className="w-4 h-4" />
-          View Captured Image
-          <ExternalLink className="w-3 h-3" />
-        </a>
+        <div className="mt-3 flex items-center gap-3">
+          <div className="w-12 h-12 bg-gray-100 dark:bg-[#1A1A1A] rounded-lg flex items-center justify-center border border-gray-200 dark:border-[#333]">
+            <Image className="w-5 h-5 text-gray-400 dark:text-[#666]" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{command === 'screenshot' ? 'Screenshot' : 'Photo'} captured</p>
+            <p className="text-xs text-gray-500 dark:text-[#666]">Click to view</p>
+          </div>
+          <a
+            href={resultUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-2 bg-red-500/10 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            View
+          </a>
+        </div>
       );
     }
     return null;
@@ -82,15 +94,15 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
     const wifi = result.wifi as Record<string, unknown>;
     const signal = wifi.rssi ? getSignalStrength(wifi.rssi as string) : null;
     return (
-      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222] space-y-3">
+      <div className="mt-3 p-4 bg-gray-50 dark:bg-[#0D0D0D] rounded-xl border border-gray-200 dark:border-[#222] space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
-              <Wifi className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center">
+              <Wifi className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <p className="font-semibold text-white">{wifi.ssid as string || 'Unknown'}</p>
-              <p className="text-xs text-[#666]">Connected Network</p>
+              <p className="font-semibold text-gray-900 dark:text-white">{wifi.ssid as string || 'Unknown'}</p>
+              <p className="text-xs text-gray-500 dark:text-[#666]">Connected Network</p>
             </div>
           </div>
           {signal && (
@@ -99,7 +111,7 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
                 {[1, 2, 3, 4].map((bar) => (
                   <div
                     key={bar}
-                    className={`w-1.5 rounded-full ${bar <= signal.level ? signal.color.replace('text-', 'bg-') : 'bg-[#333]'}`}
+                    className={`w-1.5 rounded-full ${bar <= signal.level ? signal.color.replace('text-', 'bg-') : 'bg-gray-200 dark:bg-[#333]'}`}
                     style={{ height: `${8 + bar * 4}px` }}
                   />
                 ))}
@@ -109,13 +121,13 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
           )}
         </div>
         {wifi.rssi !== undefined && wifi.rssi !== null && (
-          <div className="flex items-center gap-4 text-sm text-[#888]">
+          <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-[#888]">
             <span className="flex items-center gap-1.5">
               <Signal className="w-3.5 h-3.5" />
-              {String(wifi.rssi)}
+              {String(wifi.rssi)} dBm
             </span>
             {wifi.bssid !== undefined && wifi.bssid !== null && (
-              <span className="font-mono text-xs text-[#555]">
+              <span className="font-mono text-xs text-gray-400 dark:text-[#555]">
                 {String(wifi.bssid)}
               </span>
             )}
@@ -132,26 +144,26 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
     const isCharging = battery.charging as boolean;
     const isLow = percentage <= 20;
     return (
-      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222]">
+      <div className="mt-3 p-4 bg-gray-50 dark:bg-[#0D0D0D] rounded-xl border border-gray-200 dark:border-[#222]">
         <div className="flex items-center gap-4">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLow ? 'bg-red-500/20' : 'bg-green-500/20'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLow ? 'bg-red-100 dark:bg-red-500/20' : 'bg-green-100 dark:bg-green-500/20'}`}>
             {isCharging ? (
-              <BatteryCharging className={`w-5 h-5 ${isLow ? 'text-red-400' : 'text-green-400'}`} />
+              <BatteryCharging className={`w-5 h-5 ${isLow ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`} />
             ) : (
-              <Battery className={`w-5 h-5 ${isLow ? 'text-red-400' : 'text-green-400'}`} />
+              <Battery className={`w-5 h-5 ${isLow ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`} />
             )}
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-white">{percentage}%</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{percentage}%</span>
               {isCharging && (
-                <span className="flex items-center gap-1 text-xs text-green-400">
+                <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                   <ZapIcon className="w-3 h-3" />
                   Charging
                 </span>
               )}
             </div>
-            <div className="h-2.5 bg-[#222] rounded-full overflow-hidden">
+            <div className="h-2.5 bg-gray-200 dark:bg-[#222] rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${isLow ? 'bg-red-500' : 'bg-green-500'}`}
                 style={{ width: `${percentage}%` }}
@@ -163,31 +175,81 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
     );
   }
 
-  // Location result
+  // Location result - Enhanced with address details
   if (command === 'location' && result.location) {
     const location = result.location as Record<string, unknown>;
     const lat = location.latitude as number;
     const lng = location.longitude as number;
     const googleMapsUrl = location.google_maps as string || (lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null);
+
+    // Extract address details if available
+    const address = location.address as Record<string, unknown> | undefined;
+    const building = address?.building || address?.name || location.building;
+    const road = address?.road || address?.street || location.road || location.street;
+    const area = address?.suburb || address?.neighbourhood || address?.area || location.area;
+    const city = (location.city || address?.city) as string | undefined;
+    const region = (location.region || address?.state || address?.region) as string | undefined;
+    const country = (location.country || address?.country) as string | undefined;
+    const postcode = address?.postcode || address?.pincode || location.postcode || location.pincode;
+
+    // Determine primary location text
+    let locationText = 'Location data available';
+    let hasValidLocation = false;
+    if (city) {
+      locationText = region ? `${city}, ${region}` : String(city);
+      hasValidLocation = true;
+    } else if (lat && lng) {
+      locationText = 'GPS Location';
+      hasValidLocation = true;
+    }
+
     return (
-      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222] space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-purple-400" />
+      <div className="mt-3 p-4 bg-gray-50 dark:bg-[#0D0D0D] rounded-xl border border-gray-200 dark:border-[#222] space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <MapPin className="w-5 h-5 text-purple-600 dark:text-purple-400" />
           </div>
-          <div>
-            {location.city ? (
-              <>
-                <p className="font-semibold text-white">{location.city as string}, {location.country as string}</p>
-                <p className="text-xs text-[#666]">{location.region as string}</p>
-              </>
-            ) : lat && lng ? (
-              <>
-                <p className="font-semibold text-white">GPS Location</p>
-                <p className="text-xs text-[#666] font-mono">{lat.toFixed(6)}, {lng.toFixed(6)}</p>
-              </>
-            ) : (
-              <p className="text-[#666]">Location data available</p>
+          <div className="flex-1 min-w-0">
+            {/* Primary location info */}
+            <p className={`font-semibold ${hasValidLocation ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-[#666]'}`}>
+              {locationText}
+            </p>
+
+            {/* Address details */}
+            {Boolean(building || road || area) && (
+              <div className="mt-2 space-y-1">
+                {Boolean(building) && (
+                  <p className="text-sm text-gray-600 dark:text-[#AAA] flex items-center gap-2">
+                    <span className="text-xs text-gray-400 dark:text-[#666] w-16">Building</span>
+                    {String(building)}
+                  </p>
+                )}
+                {Boolean(road) && (
+                  <p className="text-sm text-gray-600 dark:text-[#AAA] flex items-center gap-2">
+                    <span className="text-xs text-gray-400 dark:text-[#666] w-16">Street</span>
+                    {String(road)}
+                  </p>
+                )}
+                {Boolean(area) && (
+                  <p className="text-sm text-gray-600 dark:text-[#AAA] flex items-center gap-2">
+                    <span className="text-xs text-gray-400 dark:text-[#666] w-16">Area</span>
+                    {String(area)}
+                  </p>
+                )}
+                {Boolean(postcode) && (
+                  <p className="text-sm text-gray-600 dark:text-[#AAA] flex items-center gap-2">
+                    <span className="text-xs text-gray-400 dark:text-[#666] w-16">Pincode</span>
+                    <span className="font-mono">{String(postcode)}</span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Coordinates */}
+            {lat && lng && (
+              <p className="text-xs text-gray-400 dark:text-[#555] font-mono mt-2">
+                {lat.toFixed(6)}, {lng.toFixed(6)}
+              </p>
             )}
           </div>
         </div>
@@ -196,7 +258,7 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
             href={googleMapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors text-sm font-medium"
+            className="flex items-center justify-center gap-2 p-2.5 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-colors text-sm font-medium"
           >
             <Globe className="w-4 h-4" />
             View on Google Maps
@@ -207,28 +269,70 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
     );
   }
 
-  // Screenshot/Photo result with URL
+  // Screenshot/Photo result with URL - Compact view with View button
   if ((command === 'screenshot' || command === 'photo') && resultUrl) {
     return (
       <div className="mt-3">
-        <a
-          href={resultUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block relative group"
-        >
-          <img
-            src={resultUrl}
-            alt={command === 'screenshot' ? 'Screenshot' : 'Photo'}
-            className="w-full max-w-xs rounded-xl border border-[#333] group-hover:border-red-500/50 transition-colors"
-          />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-            <span className="text-white text-sm font-medium flex items-center gap-2">
-              <ExternalLink className="w-4 h-4" />
-              Open Full Size
-            </span>
+        {!showImage ? (
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0D0D0D] rounded-xl border border-gray-200 dark:border-[#222]">
+            <div className="w-14 h-14 bg-gray-100 dark:bg-[#1A1A1A] rounded-lg flex items-center justify-center border border-gray-200 dark:border-[#333] overflow-hidden">
+              <img
+                src={resultUrl}
+                alt={command === 'screenshot' ? 'Screenshot thumbnail' : 'Photo thumbnail'}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{command === 'screenshot' ? 'Screenshot' : 'Photo'}</p>
+              <p className="text-xs text-gray-500 dark:text-[#666]">Captured successfully</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowImage(true)}
+                className="px-3 py-2 bg-gray-100 dark:bg-[#1A1A1A] text-gray-700 dark:text-[#AAA] hover:bg-gray-200 dark:hover:bg-[#222] rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-gray-200 dark:border-[#333]"
+              >
+                <Image className="w-4 h-4" />
+                Preview
+              </button>
+              <a
+                href={resultUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Full Size
+              </a>
+            </div>
           </div>
-        </a>
+        ) : (
+          <div className="relative">
+            <button
+              onClick={() => setShowImage(false)}
+              className="absolute top-2 right-2 z-10 p-2 bg-black/50 hover:bg-black/70 text-white rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <a
+              href={resultUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block relative group"
+            >
+              <img
+                src={resultUrl}
+                alt={command === 'screenshot' ? 'Screenshot' : 'Photo'}
+                className="w-full max-w-md rounded-xl border border-gray-200 dark:border-[#333] group-hover:border-red-500/50 transition-colors"
+              />
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                <span className="text-white text-sm font-medium flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  Open Full Size
+                </span>
+              </div>
+            </a>
+          </div>
+        )}
       </div>
     );
   }
@@ -236,19 +340,19 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
   // Success/Status result
   if (result.success !== undefined) {
     return (
-      <div className={`mt-3 p-3 rounded-xl border ${result.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+      <div className={`mt-3 p-3 rounded-xl border ${result.success ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30' : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30'}`}>
         <div className="flex items-center gap-2">
           {result.success ? (
-            <CheckCircle className="w-4 h-4 text-green-400" />
+            <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
           ) : (
-            <XCircle className="w-4 h-4 text-red-400" />
+            <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
           )}
-          <span className={result.success ? 'text-green-400' : 'text-red-400'}>
+          <span className={result.success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
             {result.message as string || (result.success ? 'Command executed successfully' : 'Command failed')}
           </span>
         </div>
         {result.error !== undefined && result.error !== null && (
-          <p className="text-xs text-red-400 mt-2">{String(result.error)}</p>
+          <p className="text-xs text-red-600 dark:text-red-400 mt-2">{String(result.error)}</p>
         )}
       </div>
     );
@@ -258,12 +362,12 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
   if (result.status || result.info) {
     const data = (result.status || result.info) as Record<string, unknown>;
     return (
-      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222]">
+      <div className="mt-3 p-4 bg-gray-50 dark:bg-[#0D0D0D] rounded-xl border border-gray-200 dark:border-[#222]">
         <div className="grid grid-cols-2 gap-2 text-sm">
           {Object.entries(data).map(([key, value]) => (
             <div key={key} className="flex justify-between">
-              <span className="text-[#666] capitalize">{key.replace(/_/g, ' ')}</span>
-              <span className="text-white font-medium">{String(value)}</span>
+              <span className="text-gray-500 dark:text-[#666] capitalize">{key.replace(/_/g, ' ')}</span>
+              <span className="text-gray-900 dark:text-white font-medium">{String(value)}</span>
             </div>
           ))}
         </div>
@@ -273,7 +377,7 @@ function CommandResultDisplay({ command, result, resultUrl }: { command: string;
 
   // Fallback: Show formatted JSON for unknown result types
   return (
-    <div className="mt-3 p-3 bg-[#0D0D0D] rounded-lg text-xs font-mono text-[#888] overflow-auto max-h-40">
+    <div className="mt-3 p-3 bg-gray-50 dark:bg-[#0D0D0D] rounded-lg text-xs font-mono text-gray-600 dark:text-[#888] overflow-auto max-h-40 border border-gray-200 dark:border-[#222]">
       <pre>{JSON.stringify(result, null, 2)}</pre>
     </div>
   );
@@ -287,6 +391,9 @@ interface BulkCommandResult {
 }
 
 export default function DevicesPage() {
+  const searchParams = useSearchParams();
+  const filterParam = searchParams.get('filter') as 'online' | 'offline' | null;
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [recentCommands, setRecentCommands] = useState<Command[]>([]);
@@ -306,8 +413,20 @@ export default function DevicesPage() {
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Device filter state (all, online, offline)
-  const [deviceFilter, setDeviceFilter] = useState<'all' | 'online' | 'offline'>('all');
+  // Device filter state (all, online, offline) - derived from URL param
+  const [deviceFilter, setDeviceFilter] = useState<'all' | 'online' | 'offline'>(filterParam || 'all');
+
+  // Show split view only when filter is active
+  const showSplitView = filterParam !== null;
+
+  // Update filter when URL param changes
+  useEffect(() => {
+    if (filterParam) {
+      setDeviceFilter(filterParam);
+    } else {
+      setDeviceFilter('all');
+    }
+  }, [filterParam]);
 
   useEffect(() => {
     fetchDevices();
@@ -523,14 +642,7 @@ export default function DevicesPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
-          <p className="text-[#666]">Loading devices...</p>
-        </div>
-      </div>
-    );
+    return <HackerLoader message="Scanning network for devices..." />;
   }
 
   return (
@@ -538,14 +650,14 @@ export default function DevicesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <Monitor className="w-7 h-7 text-red-500" />
             Devices
           </h1>
-          <p className="text-[#666] mt-1">
-            {devices.length} devices • <span className="text-green-400">{onlineDevices.length} online</span> • <span className="text-[#666]">{offlineDevices.length} offline</span>
+          <p className="text-gray-500 dark:text-[#666] mt-1">
+            {devices.length} devices • <span className="text-green-600 dark:text-green-400">{onlineDevices.length} online</span> • <span className="text-gray-500 dark:text-[#666]">{offlineDevices.length} offline</span>
             {bulkMode && selectedDeviceIds.size > 0 && (
-              <span className="ml-2 text-red-500 font-medium">
+              <span className="ml-2 text-red-600 dark:text-red-500 font-medium">
                 • {selectedDeviceIds.size} selected
               </span>
             )}
@@ -563,7 +675,7 @@ export default function DevicesPage() {
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all duration-200 ${
               bulkMode
                 ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
-                : 'bg-[#1A1A1A] text-[#AAA] border border-[#333] hover:border-red-500/50 hover:text-white'
+                : 'bg-gray-100 dark:bg-[#1A1A1A] text-gray-700 dark:text-[#AAA] border border-gray-200 dark:border-[#333] hover:border-red-500/50 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -571,7 +683,7 @@ export default function DevicesPage() {
           </button>
           <button
             onClick={fetchDevices}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#1A1A1A] text-[#AAA] border border-[#333] hover:border-red-500/50 hover:text-white rounded-xl font-medium transition-all duration-200"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-[#1A1A1A] text-gray-700 dark:text-[#AAA] border border-gray-200 dark:border-[#333] hover:border-red-500/50 hover:text-gray-900 dark:hover:text-white rounded-xl font-medium transition-all duration-200"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -581,29 +693,29 @@ export default function DevicesPage() {
 
       {/* Bulk Selection Toolbar */}
       {bulkMode && (
-        <div className="neon-card p-4 flex items-center justify-between border-red-500/30">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-xl p-4 flex items-center justify-between border border-red-200 dark:border-red-500/30 shadow-sm">
           <div className="flex items-center gap-4">
             <button
               onClick={selectAllDevices}
-              className="flex items-center gap-2 px-4 py-2 bg-[#222] border border-[#333] rounded-lg hover:border-red-500/50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-lg hover:border-red-500/50 transition-colors"
             >
               {selectedDeviceIds.size === devices.length ? (
                 <CheckSquare className="w-4 h-4 text-red-500" />
               ) : (
-                <Square className="w-4 h-4 text-[#666]" />
+                <Square className="w-4 h-4 text-gray-400 dark:text-[#666]" />
               )}
-              <span className="text-[#AAA]">Select All</span>
+              <span className="text-gray-700 dark:text-[#AAA]">Select All</span>
             </button>
             <button
               onClick={selectOnlineDevices}
-              className="flex items-center gap-2 px-4 py-2 bg-[#222] border border-[#333] rounded-lg hover:border-green-500/50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded-lg hover:border-green-500/50 transition-colors"
             >
               <div className="w-3 h-3 bg-green-500 rounded-full pulse-online" />
-              <span className="text-[#AAA]">Online ({onlineDevices.length})</span>
+              <span className="text-gray-700 dark:text-[#AAA]">Online ({onlineDevices.length})</span>
             </button>
             <button
               onClick={() => setSelectedDeviceIds(new Set())}
-              className="px-4 py-2 text-[#666] hover:text-white transition-colors"
+              className="px-4 py-2 text-gray-500 dark:text-[#666] hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               Clear
             </button>
@@ -621,151 +733,170 @@ export default function DevicesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Device List */}
-        <div className="neon-card overflow-hidden">
-          {/* Filter Tabs */}
-          <div className="p-3 border-b border-[#222] bg-[#0D0D0D]">
-            <div className="flex gap-1">
-              <button
-                onClick={() => setDeviceFilter('all')}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  deviceFilter === 'all'
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
-                    : 'text-[#888] hover:bg-[#1A1A1A] hover:text-white'
-                }`}
-              >
-                All ({devices.length})
-              </button>
-              <button
-                onClick={() => setDeviceFilter('online')}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                  deviceFilter === 'online'
-                    ? 'bg-green-600 text-white shadow-lg shadow-green-500/20'
-                    : 'text-[#888] hover:bg-[#1A1A1A] hover:text-white'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${deviceFilter === 'online' ? 'bg-white' : 'bg-green-500'} pulse-online`} />
-                Online ({onlineDevices.length})
-              </button>
-              <button
-                onClick={() => setDeviceFilter('offline')}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  deviceFilter === 'offline'
-                    ? 'bg-[#444] text-white'
-                    : 'text-[#888] hover:bg-[#1A1A1A] hover:text-white'
-                }`}
-              >
-                Offline ({offlineDevices.length})
-              </button>
+      {/* Full-width card grid when no filter (main Devices view) */}
+      {!showSplitView ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {devices.length === 0 ? (
+            <div className="col-span-full p-12 text-center bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333]">
+              <Monitor className="w-16 h-16 text-gray-300 dark:text-[#333] mx-auto mb-4" />
+              <p className="text-gray-500 dark:text-[#666] text-lg">No devices found</p>
+              <p className="text-gray-400 dark:text-[#555] text-sm mt-1">Install the agent to start monitoring</p>
+            </div>
+          ) : (
+            devices.map((device) => {
+              const online = isOnline(device);
+              return (
+                <div
+                  key={device.id}
+                  onClick={() => setSelectedDevice(device)}
+                  className={`bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-5 cursor-pointer transition-all duration-200 hover:border-red-500/50 hover:shadow-lg ${
+                    selectedDevice?.id === device.id ? 'ring-2 ring-red-500 border-transparent' : ''
+                  } ${!online ? 'opacity-70 hover:opacity-100' : ''}`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                        online ? 'bg-green-100 dark:bg-green-500/20' : 'bg-gray-100 dark:bg-[#222]'
+                      }`}>
+                        <Monitor className={`w-6 h-6 ${online ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-[#555]'}`} />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white truncate max-w-[180px]">
+                          {device.hostname}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-[#666]">{device.os_version}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      online
+                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/30'
+                        : 'bg-gray-100 dark:bg-[#222] text-gray-500 dark:text-[#666] border border-gray-200 dark:border-[#333]'
+                    }`}>
+                      {online ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 dark:text-[#666]">Last seen</span>
+                    <span className={`font-medium ${online ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-[#888]'}`}>
+                      {online ? 'Just now' : formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
+                    </span>
+                  </div>
+                  {!online && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeviceToDelete(device);
+                        setShowDeleteConfirm(true);
+                      }}
+                      className="mt-3 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Remove Device
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        /* Split view when filter is active (Online/Offline from sidebar) */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Device List */}
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-sm">
+            {/* Filter Header */}
+            <div className="p-4 border-b border-gray-200 dark:border-[#222] bg-gray-50 dark:bg-[#0D0D0D]">
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                {filterParam === 'online' ? (
+                  <>
+                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full pulse-online" />
+                    Online Devices ({onlineDevices.length})
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2.5 h-2.5 bg-gray-400 rounded-full" />
+                    Offline Devices ({offlineDevices.length})
+                  </>
+                )}
+              </h3>
+            </div>
+
+            {/* Device List */}
+            <div className="divide-y divide-gray-100 dark:divide-[#1A1A1A] max-h-[600px] overflow-auto">
+              {filteredDevices.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Monitor className="w-12 h-12 text-gray-300 dark:text-[#333] mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-[#666]">
+                    {deviceFilter === 'online' ? 'No devices online' : 'No offline devices'}
+                  </p>
+                </div>
+              ) : (
+                filteredDevices.map((device) => {
+                  const online = isOnline(device);
+                  return (
+                    <div
+                      key={device.id}
+                      className={`flex items-center transition-all duration-200 ${
+                        selectedDevice?.id === device.id
+                          ? 'bg-red-50 dark:bg-red-500/10 border-l-2 border-red-500'
+                          : 'hover:bg-gray-50 dark:hover:bg-[#111]'
+                      }`}
+                    >
+                      <button
+                        onClick={() => setSelectedDevice(device)}
+                        className="flex-1 p-4 text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            online ? 'bg-green-100 dark:bg-green-500/20' : 'bg-gray-100 dark:bg-[#222]'
+                          }`}>
+                            <Monitor className={`w-5 h-5 ${online ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-[#555]'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate text-gray-900 dark:text-white">
+                              {device.hostname}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-[#555]">{device.os_version}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {online ? (
+                              <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                                <Activity className="w-3 h-3" />
+                                Live
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-[#555]">
+                                {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
-
-          {/* Device List */}
-          <div className="divide-y divide-[#1A1A1A] max-h-[500px] overflow-auto">
-            {filteredDevices.length === 0 ? (
-              <div className="p-12 text-center">
-                <Monitor className="w-12 h-12 text-[#333] mx-auto mb-3" />
-                <p className="text-[#666]">
-                  {deviceFilter === 'online'
-                    ? 'No devices online'
-                    : deviceFilter === 'offline'
-                      ? 'No offline devices'
-                      : 'No devices found'}
-                </p>
-              </div>
-            ) : (
-              filteredDevices.map((device) => {
-                const online = isOnline(device);
-                return (
-                  <div
-                    key={device.id}
-                    className={`flex items-center transition-all duration-200 ${
-                      !bulkMode && selectedDevice?.id === device.id
-                        ? 'bg-red-500/10 border-l-2 border-red-500'
-                        : 'hover:bg-[#111]'
-                    } ${!online && deviceFilter === 'all' ? 'opacity-60 hover:opacity-100' : ''}`}
-                  >
-                    {bulkMode && (
-                      <button
-                        onClick={() => toggleDeviceSelection(device.id)}
-                        className="p-4 hover:bg-[#111]"
-                      >
-                        {selectedDeviceIds.has(device.id) ? (
-                          <CheckSquare className="w-5 h-5 text-red-500" />
-                        ) : (
-                          <Square className="w-5 h-5 text-[#444]" />
-                        )}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => !bulkMode && setSelectedDevice(device)}
-                      className="flex-1 p-4 text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          online ? 'bg-green-500/20' : 'bg-[#1A1A1A]'
-                        }`}>
-                          <Monitor className={`w-5 h-5 ${online ? 'text-green-400' : 'text-[#444]'}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-medium truncate ${online ? 'text-white' : 'text-[#888]'}`}>
-                            {device.hostname}
-                          </p>
-                          <p className="text-xs text-[#555]">{device.os_version}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {online ? (
-                            <span className="flex items-center gap-1.5 text-xs text-green-400">
-                              <Activity className="w-3 h-3" />
-                              Live
-                            </span>
-                          ) : (
-                            <span className="text-xs text-[#555]">
-                              {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
-                            </span>
-                          )}
-                          {!online && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeviceToDelete(device);
-                                setShowDeleteConfirm(true);
-                              }}
-                              className="p-1.5 text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                              title="Remove device"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
 
         {/* Device Details & Commands */}
         <div className="lg:col-span-2 space-y-6">
           {selectedDevice && !bulkMode ? (
             <>
               {/* Device Info Card */}
-              <div className="neon-card p-6">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
                       isOnline(selectedDevice)
-                        ? 'bg-green-500/20 shadow-lg shadow-green-500/20'
-                        : 'bg-[#1A1A1A]'
+                        ? 'bg-green-100 dark:bg-green-500/20 shadow-lg shadow-green-500/20'
+                        : 'bg-gray-100 dark:bg-[#1A1A1A]'
                     }`}>
-                      <Monitor className={`w-7 h-7 ${isOnline(selectedDevice) ? 'text-green-400' : 'text-[#444]'}`} />
+                      <Monitor className={`w-7 h-7 ${isOnline(selectedDevice) ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-[#444]'}`} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-white">{selectedDevice.hostname}</h2>
-                      <p className="text-[#666]">{selectedDevice.os_version}</p>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedDevice.hostname}</h2>
+                      <p className="text-gray-500 dark:text-[#666]">{selectedDevice.os_version}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -781,7 +912,7 @@ export default function DevicesPage() {
                         setDeviceToDelete(selectedDevice);
                         setShowDeleteConfirm(true);
                       }}
-                      className="p-2 text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                      className="p-2 text-gray-400 dark:text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
                       title="Remove device"
                     >
                       <Trash2 className="w-5 h-5" />
@@ -789,13 +920,13 @@ export default function DevicesPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mt-6">
-                  <div className="p-4 bg-[#111] rounded-xl border border-[#222]">
-                    <p className="text-xs text-[#666] uppercase tracking-wider mb-1">Hostname</p>
-                    <p className="font-medium text-white">{selectedDevice.hostname}</p>
+                  <div className="p-4 bg-gray-50 dark:bg-[#111] rounded-xl border border-gray-200 dark:border-[#222]">
+                    <p className="text-xs text-gray-500 dark:text-[#666] uppercase tracking-wider mb-1">Hostname</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{selectedDevice.hostname}</p>
                   </div>
-                  <div className="p-4 bg-[#111] rounded-xl border border-[#222]">
-                    <p className="text-xs text-[#666] uppercase tracking-wider mb-1">Last Seen</p>
-                    <p className="font-medium text-white">
+                  <div className="p-4 bg-gray-50 dark:bg-[#111] rounded-xl border border-gray-200 dark:border-[#222]">
+                    <p className="text-xs text-gray-500 dark:text-[#666] uppercase tracking-wider mb-1">Last Seen</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
                       {formatDistanceToNow(new Date(selectedDevice.last_seen), { addSuffix: true })}
                     </p>
                   </div>
@@ -803,8 +934,8 @@ export default function DevicesPage() {
               </div>
 
               {/* Quick Commands */}
-              <div className="neon-card p-6">
-                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-sm">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-red-500" />
                   Quick Commands
                 </h3>
@@ -821,21 +952,21 @@ export default function DevicesPage() {
                         disabled={disabled}
                         className={`p-4 rounded-xl border text-left transition-all duration-200 group ${
                           isSending
-                            ? 'bg-red-500/10 border-red-500/50'
+                            ? 'bg-red-50 dark:bg-red-500/10 border-red-300 dark:border-red-500/50'
                             : disabled
-                            ? 'bg-[#0D0D0D] border-[#1A1A1A] opacity-40 cursor-not-allowed'
-                            : 'bg-[#111] border-[#222] hover:border-red-500/50 hover:bg-[#1A1A1A]'
+                            ? 'bg-gray-50 dark:bg-[#0D0D0D] border-gray-200 dark:border-[#1A1A1A] opacity-40 cursor-not-allowed'
+                            : 'bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-[#222] hover:border-red-500/50 hover:bg-gray-100 dark:hover:bg-[#1A1A1A]'
                         }`}
                       >
                         <Icon className={`w-6 h-6 mb-2 transition-colors ${
                           isSending
                             ? 'text-red-500 animate-pulse'
                             : disabled
-                            ? 'text-[#333]'
-                            : 'text-[#666] group-hover:text-red-500'
+                            ? 'text-gray-300 dark:text-[#333]'
+                            : 'text-gray-500 dark:text-[#666] group-hover:text-red-500'
                         }`} />
-                        <p className="font-medium text-sm text-white">{cmd.label}</p>
-                        <p className="text-xs text-[#666] mt-1">{cmd.description}</p>
+                        <p className="font-medium text-sm text-gray-900 dark:text-white">{cmd.label}</p>
+                        <p className="text-xs text-gray-500 dark:text-[#666] mt-1">{cmd.description}</p>
                       </button>
                     );
                   })}
@@ -843,30 +974,30 @@ export default function DevicesPage() {
               </div>
 
               {/* Recent Commands */}
-              <div className="neon-card overflow-hidden">
-                <div className="p-4 border-b border-[#222]">
-                  <h3 className="font-semibold text-white flex items-center gap-2">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-gray-200 dark:border-[#222]">
+                  <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <Send className="w-5 h-5 text-red-500" />
                     Recent Commands
                   </h3>
                 </div>
-                <div className="divide-y divide-[#1A1A1A] max-h-80 overflow-auto">
+                <div className="divide-y divide-gray-100 dark:divide-[#1A1A1A] max-h-80 overflow-auto">
                   {recentCommands.length === 0 ? (
                     <div className="p-8 text-center">
-                      <Send className="w-10 h-10 text-[#222] mx-auto mb-3" />
-                      <p className="text-[#666]">No commands sent yet</p>
+                      <Send className="w-10 h-10 text-gray-200 dark:text-[#222] mx-auto mb-3" />
+                      <p className="text-gray-500 dark:text-[#666]">No commands sent yet</p>
                     </div>
                   ) : (
                     recentCommands.map((cmd) => (
-                      <div key={cmd.id} className="p-4 hover:bg-[#0D0D0D] transition-colors">
+                      <div key={cmd.id} className="p-4 hover:bg-gray-50 dark:hover:bg-[#0D0D0D] transition-colors">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-[#1A1A1A] rounded-lg flex items-center justify-center">
-                              <Send className="w-4 h-4 text-[#666]" />
+                            <div className="w-8 h-8 bg-gray-100 dark:bg-[#1A1A1A] rounded-lg flex items-center justify-center">
+                              <Send className="w-4 h-4 text-gray-500 dark:text-[#666]" />
                             </div>
                             <div>
-                              <p className="font-medium text-white capitalize">{cmd.command}</p>
-                              <p className="text-xs text-[#666]">
+                              <p className="font-medium text-gray-900 dark:text-white capitalize">{cmd.command}</p>
+                              <p className="text-xs text-gray-500 dark:text-[#666]">
                                 {formatDistanceToNow(new Date(cmd.created_at), { addSuffix: true })}
                               </p>
                             </div>
@@ -887,39 +1018,40 @@ export default function DevicesPage() {
               </div>
             </>
           ) : bulkMode ? (
-            <div className="neon-card p-12 text-center">
-              <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-12 text-center shadow-sm">
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-red-500" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Bulk Command Mode</h3>
-              <p className="text-[#666] mb-6 max-w-md mx-auto">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Bulk Command Mode</h3>
+              <p className="text-gray-500 dark:text-[#666] mb-6 max-w-md mx-auto">
                 Select devices from the list, then click &quot;Send Command&quot; to execute commands on multiple devices at once.
               </p>
               {selectedDeviceIds.size > 0 && (
-                <p className="text-red-500 font-medium">
+                <p className="text-red-600 dark:text-red-500 font-medium">
                   {selectedDeviceIds.size} device{selectedDeviceIds.size !== 1 ? 's' : ''} selected
                 </p>
               )}
             </div>
           ) : (
-            <div className="neon-card p-12 text-center">
-              <div className="w-16 h-16 bg-[#1A1A1A] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Monitor className="w-8 h-8 text-[#333]" />
+            <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] p-12 text-center shadow-sm">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-[#1A1A1A] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Monitor className="w-8 h-8 text-gray-300 dark:text-[#333]" />
               </div>
-              <p className="text-[#666]">Select a device to view details and send commands</p>
+              <p className="text-gray-500 dark:text-[#666]">Select a device to view details and send commands</p>
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Bulk Command Modal */}
       {showBulkPanel && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="neon-card w-full max-w-2xl m-4 max-h-[90vh] overflow-auto">
-            <div className="p-6 border-b border-[#222] flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] w-full max-w-2xl m-4 max-h-[90vh] overflow-auto shadow-xl">
+            <div className="p-6 border-b border-gray-200 dark:border-[#222] flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-white">Send Bulk Command</h2>
-                <p className="text-[#666]">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Send Bulk Command</h2>
+                <p className="text-gray-500 dark:text-[#666]">
                   Sending to {selectedDeviceIds.size} device{selectedDeviceIds.size !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -929,7 +1061,7 @@ export default function DevicesPage() {
                   setBulkCommand(null);
                   setBulkResults([]);
                 }}
-                className="p-2 text-[#666] hover:text-white hover:bg-[#222] rounded-xl transition-colors"
+                className="p-2 text-gray-500 dark:text-[#666] hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] rounded-xl transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -937,7 +1069,7 @@ export default function DevicesPage() {
 
             {!bulkCommand ? (
               <div className="p-6">
-                <p className="text-sm text-[#666] mb-4">Select a command to execute:</p>
+                <p className="text-sm text-gray-500 dark:text-[#666] mb-4">Select a command to execute:</p>
                 <div className="grid grid-cols-2 gap-3">
                   {COMMANDS.map((cmd) => {
                     const Icon = cmd.icon;
@@ -945,11 +1077,11 @@ export default function DevicesPage() {
                       <button
                         key={cmd.id}
                         onClick={() => executeBulkCommand(cmd.id)}
-                        className="p-4 rounded-xl border border-[#222] bg-[#111] text-left hover:border-red-500/50 hover:bg-[#1A1A1A] transition-all duration-200 group"
+                        className="p-4 rounded-xl border border-gray-200 dark:border-[#222] bg-gray-50 dark:bg-[#111] text-left hover:border-red-500/50 hover:bg-gray-100 dark:hover:bg-[#1A1A1A] transition-all duration-200 group"
                       >
-                        <Icon className="w-6 h-6 mb-2 text-[#666] group-hover:text-red-500 transition-colors" />
-                        <p className="font-medium text-sm text-white">{cmd.label}</p>
-                        <p className="text-xs text-[#666] mt-1">{cmd.description}</p>
+                        <Icon className="w-6 h-6 mb-2 text-gray-500 dark:text-[#666] group-hover:text-red-500 transition-colors" />
+                        <p className="font-medium text-sm text-gray-900 dark:text-white">{cmd.label}</p>
+                        <p className="text-xs text-gray-500 dark:text-[#666] mt-1">{cmd.description}</p>
                       </button>
                     );
                   })}
@@ -958,14 +1090,14 @@ export default function DevicesPage() {
             ) : (
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-red-500/20 rounded-xl">
+                  <div className="p-3 bg-red-50 dark:bg-red-500/20 rounded-xl">
                     <Play className="w-5 h-5 text-red-500" />
                   </div>
                   <div>
-                    <p className="font-medium text-white">
+                    <p className="font-medium text-gray-900 dark:text-white">
                       Executing: {COMMANDS.find(c => c.id === bulkCommand)?.label}
                     </p>
-                    <p className="text-sm text-[#666]">
+                    <p className="text-sm text-gray-500 dark:text-[#666]">
                       {bulkExecuting ? 'Sending commands...' : 'Complete'}
                     </p>
                   </div>
@@ -975,18 +1107,18 @@ export default function DevicesPage() {
                   {bulkResults.map((result) => (
                     <div
                       key={result.deviceId}
-                      className="flex items-center justify-between p-3 bg-[#111] rounded-xl border border-[#222]"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#111] rounded-xl border border-gray-200 dark:border-[#222]"
                     >
-                      <span className="font-medium text-white">{result.deviceName}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{result.deviceName}</span>
                       <div className="flex items-center gap-2">
                         {result.status === 'pending' && (
-                          <span className="text-[#666] text-sm">Waiting...</span>
+                          <span className="text-gray-500 dark:text-[#666] text-sm">Waiting...</span>
                         )}
                         {result.status === 'sending' && (
-                          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                          <Loader2 className="w-4 h-4 text-blue-500 dark:text-blue-400 animate-spin" />
                         )}
                         {result.status === 'sent' && (
-                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400" />
                         )}
                         {result.status === 'error' && (
                           <XCircle className="w-4 h-4 text-red-500" />
@@ -1003,7 +1135,7 @@ export default function DevicesPage() {
                         setBulkCommand(null);
                         setBulkResults([]);
                       }}
-                      className="px-4 py-2.5 text-[#AAA] hover:text-white hover:bg-[#222] rounded-xl transition-colors"
+                      className="px-4 py-2.5 text-gray-600 dark:text-[#AAA] hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#222] rounded-xl transition-colors"
                     >
                       Send Another
                     </button>
@@ -1029,28 +1161,28 @@ export default function DevicesPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && deviceToDelete && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="neon-card w-full max-w-md m-4">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-[#333] w-full max-w-md m-4 shadow-xl">
             <div className="p-6">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-red-500/20 rounded-xl">
+                <div className="p-3 bg-red-50 dark:bg-red-500/20 rounded-xl">
                   <AlertTriangle className="w-6 h-6 text-red-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Remove Device</h2>
-                  <p className="text-[#666]">This action cannot be undone</p>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Remove Device</h2>
+                  <p className="text-gray-500 dark:text-[#666]">This action cannot be undone</p>
                 </div>
               </div>
 
-              <div className="bg-[#111] rounded-xl p-4 mb-6 border border-[#222]">
-                <p className="font-medium text-white">{deviceToDelete.hostname}</p>
-                <p className="text-sm text-[#666]">{deviceToDelete.os_version}</p>
-                <p className="text-xs text-[#555] mt-2">
+              <div className="bg-gray-50 dark:bg-[#111] rounded-xl p-4 mb-6 border border-gray-200 dark:border-[#222]">
+                <p className="font-medium text-gray-900 dark:text-white">{deviceToDelete.hostname}</p>
+                <p className="text-sm text-gray-500 dark:text-[#666]">{deviceToDelete.os_version}</p>
+                <p className="text-xs text-gray-400 dark:text-[#555] mt-2">
                   Last seen: {formatDistanceToNow(new Date(deviceToDelete.last_seen), { addSuffix: true })}
                 </p>
               </div>
 
-              <p className="text-sm text-[#888] mb-6">
+              <p className="text-sm text-gray-600 dark:text-[#888] mb-6">
                 This will permanently remove the device and all its associated events and commands.
               </p>
 
@@ -1060,7 +1192,7 @@ export default function DevicesPage() {
                     setShowDeleteConfirm(false);
                     setDeviceToDelete(null);
                   }}
-                  className="flex-1 px-4 py-3 border border-[#333] rounded-xl hover:bg-[#111] text-[#AAA] hover:text-white transition-colors"
+                  className="flex-1 px-4 py-3 border border-gray-200 dark:border-[#333] rounded-xl hover:bg-gray-50 dark:hover:bg-[#111] text-gray-600 dark:text-[#AAA] hover:text-gray-900 dark:hover:text-white transition-colors"
                   disabled={deleting}
                 >
                   Cancel
