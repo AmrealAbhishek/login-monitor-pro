@@ -91,7 +91,8 @@ interface KeystrokeLog {
 interface Device {
   id: string;
   hostname: string;
-  is_online: boolean;
+  is_active: boolean;
+  last_seen: string;
 }
 
 export default function DLPPage() {
@@ -165,8 +166,9 @@ export default function DLPPage() {
 
       const { data: deviceList } = await supabase
         .from('devices')
-        .select('id, hostname, is_online')
-        .eq('is_online', true);
+        .select('id, hostname, is_active, last_seen')
+        .eq('is_active', true)
+        .order('last_seen', { ascending: false });
       if (deviceList) setDevices(deviceList);
 
       setStats({
@@ -723,9 +725,16 @@ export default function DLPPage() {
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-200 dark:border-[#222] rounded-lg text-sm"
                 >
                   <option value="">Select device...</option>
-                  {devices.map(d => (
-                    <option key={d.id} value={d.id}>{d.hostname}</option>
-                  ))}
+                  {devices.map(d => {
+                    const lastSeen = new Date(d.last_seen);
+                    const minutesAgo = Math.floor((Date.now() - lastSeen.getTime()) / 60000);
+                    const isOnline = minutesAgo < 5;
+                    return (
+                      <option key={d.id} value={d.id}>
+                        {isOnline ? '[Online] ' : `[${minutesAgo}m ago] `}{d.hostname}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div>
