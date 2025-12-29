@@ -62,16 +62,19 @@ interface ShadowITDetection {
   last_detected: string;
 }
 
-interface FileTransfer {
+interface FileAccessEvent {
   id: string;
   device_id: string;
-  transfer_type: string;
-  source_path: string;
-  destination: string;
-  destination_type: string;
+  file_path: string;
   file_name: string;
-  file_size: number;
-  sensitive_detected: boolean;
+  file_extension: string;
+  access_type: string;
+  app_name: string;
+  user_name: string;
+  hostname?: string;
+  file_size_bytes?: number;
+  triggered_alert: boolean;
+  alert_severity?: string;
   created_at: string;
 }
 
@@ -101,7 +104,7 @@ export default function DLPPage() {
   const [usbEvents, setUsbEvents] = useState<USBEvent[]>([]);
   const [clipboardEvents, setClipboardEvents] = useState<ClipboardEvent[]>([]);
   const [shadowIT, setShadowIT] = useState<ShadowITDetection[]>([]);
-  const [fileTransfers, setFileTransfers] = useState<FileTransfer[]>([]);
+  const [fileAccessEvents, setFileAccessEvents] = useState<FileAccessEvent[]>([]);
   const [keystrokeLogs, setKeystrokeLogs] = useState<KeystrokeLog[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,11 +155,11 @@ export default function DLPPage() {
       if (shadow) setShadowIT(shadow);
 
       const { data: files } = await supabase
-        .from('file_transfer_events')
+        .from('file_access_events')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
-      if (files) setFileTransfers(files);
+      if (files) setFileAccessEvents(files);
 
       const { data: keystrokes } = await supabase
         .from('keystroke_logs')
@@ -177,7 +180,7 @@ export default function DLPPage() {
         blockedUSB: usb?.filter(e => e.action_taken === 'blocked').length || 0,
         sensitiveClipboard: clipboard?.filter(e => e.sensitive_data_detected).length || 0,
         shadowITHigh: shadow?.filter(e => e.risk_level === 'high' || e.risk_level === 'critical').length || 0,
-        sensitiveFiles: files?.filter(e => e.sensitive_detected).length || 0
+        sensitiveFiles: files?.filter(e => e.triggered_alert).length || 0
       });
     } catch (error) {
       console.error('Error loading DLP data:', error);
@@ -704,59 +707,65 @@ export default function DLPPage() {
           <div className="p-4 border-b border-gray-200 dark:border-[#222]">
             <h2 className="font-semibold flex items-center gap-2">
               <FolderSync className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              File Transfer Monitoring
+              File Access Monitoring
             </h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">Track uploads, downloads, and file movements</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Track file create, modify, and delete events</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-[#0a0a0a]">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Time</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Type</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Action</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">File</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Destination</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Size</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Sensitive</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">App</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Alert</th>
                 </tr>
               </thead>
               <tbody>
-                {fileTransfers.length === 0 ? (
+                {fileAccessEvents.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No file transfers recorded yet
+                      No file access events recorded yet
                     </td>
                   </tr>
                 ) : (
-                  fileTransfers.map(transfer => (
-                    <tr key={transfer.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
+                  fileAccessEvents.map(event => (
+                    <tr key={event.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                        {formatTime(transfer.created_at)}
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(event.created_at)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{event.user_name || '-'}</span>
+                          <span className="text-xs text-gray-400">{event.hostname || ''}</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded text-xs border flex items-center gap-1 w-fit ${
-                          transfer.transfer_type === 'upload' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/50' :
-                          transfer.transfer_type === 'download' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/50' :
+                          event.access_type === 'create' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/50' :
+                          event.access_type === 'delete' ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/50' :
                           'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/50'
                         }`}>
-                          {transfer.transfer_type === 'upload' ? <Upload className="w-3 h-3" /> : <Download className="w-3 h-3" />}
-                          {transfer.transfer_type}
+                          {event.access_type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">{transfer.file_name || '-'}</td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                          {transfer.destination_type}
-                        </span>
+                        <div className="font-medium text-sm">{event.file_name}</div>
+                        <div className="text-xs text-gray-400 truncate max-w-xs">{event.file_path}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                        {transfer.file_size ? formatBytes(transfer.file_size) : '-'}
+                        {event.app_name || '-'}
                       </td>
                       <td className="px-4 py-3">
-                        {transfer.sensitive_detected ? (
-                          <span className="px-2 py-1 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded text-xs border border-red-200 dark:border-red-500/50 flex items-center gap-1 w-fit">
+                        {event.triggered_alert ? (
+                          <span className={`px-2 py-1 rounded text-xs border flex items-center gap-1 w-fit ${getSeverityColor(event.alert_severity || 'high')}`}>
                             <AlertTriangle className="w-3 h-3" />
-                            Sensitive
+                            {event.alert_severity?.toUpperCase() || 'ALERT'}
                           </span>
                         ) : (
                           <span className="text-gray-400">-</span>
