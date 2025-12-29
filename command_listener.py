@@ -1337,6 +1337,119 @@ class CommandListener:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def cmd_shell(self, args: dict) -> dict:
+        """Execute a shell command and return the output.
+
+        For IT admin diagnostics: ifconfig, ping, reboot, etc.
+
+        Args:
+            cmd: The shell command to execute
+            timeout: Timeout in seconds (default: 60)
+            sudo: Whether to use sudo (default: false)
+        """
+        try:
+            cmd = args.get("cmd", "").strip()
+            timeout = int(args.get("timeout", 60))
+            use_sudo = args.get("sudo", False)
+
+            if not cmd:
+                return {"success": False, "error": "No command specified"}
+
+            # Security: Block dangerous patterns
+            dangerous = ["rm -rf /", "> /dev/sda", "dd if=", "mkfs", ":(){:|:&};:"]
+            for pattern in dangerous:
+                if pattern in cmd.lower():
+                    return {"success": False, "error": f"Command blocked for safety: {pattern}"}
+
+            log(f"[SHELL] Executing: {cmd}")
+
+            # Build command
+            if use_sudo:
+                # Use sudo -n (non-interactive) - requires NOPASSWD in sudoers
+                full_cmd = f"sudo -n {cmd}"
+            else:
+                full_cmd = cmd
+
+            # Execute
+            result = subprocess.run(
+                full_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=str(Path.home())
+            )
+
+            stdout = result.stdout[:50000] if result.stdout else ""  # Limit output
+            stderr = result.stderr[:10000] if result.stderr else ""
+
+            return {
+                "success": result.returncode == 0,
+                "command": cmd,
+                "exit_code": result.returncode,
+                "stdout": stdout,
+                "stderr": stderr,
+                "output": stdout or stderr  # Combined for easy display
+            }
+
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "error": f"Command timed out after {timeout} seconds",
+                "command": cmd
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "command": cmd}
+
+    def cmd_reboot(self, args: dict) -> dict:
+        """Reboot the system (requires sudo NOPASSWD)."""
+        try:
+            log("[SHELL] Rebooting system...")
+
+            # Use sudo -n for non-interactive sudo
+            result = subprocess.run(
+                ["sudo", "-n", "shutdown", "-r", "now"],
+                capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode != 0:
+                # Fallback: try osascript restart
+                result = subprocess.run([
+                    "osascript", "-e",
+                    'tell application "System Events" to restart'
+                ], capture_output=True, text=True, timeout=10)
+
+            return {
+                "success": True,
+                "message": "Reboot initiated"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_shutdown(self, args: dict) -> dict:
+        """Shutdown the system (requires sudo NOPASSWD)."""
+        try:
+            log("[SHELL] Shutting down system...")
+
+            result = subprocess.run(
+                ["sudo", "-n", "shutdown", "-h", "now"],
+                capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode != 0:
+                # Fallback: try osascript
+                result = subprocess.run([
+                    "osascript", "-e",
+                    'tell application "System Events" to shut down'
+                ], capture_output=True, text=True, timeout=10)
+
+            return {
+                "success": True,
+                "message": "Shutdown initiated"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     # =========================================================================
     # MAIN LOOP
     # =========================================================================
@@ -1408,6 +1521,14 @@ class CommandListener:
             "uninstallapp": self.cmd_uninstall_app,
             "list_apps": self.cmd_list_apps,
             "listapps": self.cmd_list_apps,
+            # Remote shell commands
+            "shell": self.cmd_shell,
+            "exec": self.cmd_shell,
+            "run": self.cmd_shell,
+            "reboot": self.cmd_reboot,
+            "restart": self.cmd_reboot,
+            "shutdown": self.cmd_shutdown,
+            "poweroff": self.cmd_shutdown,
         }
 
         handler = handlers.get(cmd_name)
