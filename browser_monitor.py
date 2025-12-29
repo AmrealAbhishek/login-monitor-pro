@@ -83,6 +83,7 @@ class UrlVisit:
     category: str = "neutral"
     duration_seconds: int = 0
     is_incognito: bool = False
+    user_name: str = field(default_factory=lambda: os.getenv("USER", "unknown"))
     timestamp: datetime = field(default_factory=datetime.now)
     matched_rule: Optional[UrlRule] = None
 
@@ -694,11 +695,12 @@ class BrowserMonitor:
                     "alert_type": "url_alert",
                     "severity": rule.severity,
                     "title": f"{rule.name}: {visit.domain}",
-                    "description": f"URL accessed: {visit.url}\nBrowser: {visit.browser or 'Unknown'}\nCategory: {visit.category}",
+                    "description": f"URL accessed: {visit.url}\nUser: {visit.user_name}\nBrowser: {visit.browser or 'Unknown'}\nCategory: {visit.category}",
                     "metadata": {
                         "url": visit.url,
                         "domain": visit.domain,
                         "browser": visit.browser,
+                        "user_name": visit.user_name,
                         "rule_id": rule.id,
                         "rule_name": rule.name,
                         "screenshot_url": screenshot_url
@@ -760,6 +762,7 @@ class BrowserMonitor:
                     "source_bundle_id": visit.source_bundle_id,
                     "category": visit.category,
                     "duration_seconds": visit.duration_seconds,
+                    "user_name": visit.user_name,
                     "triggered_rule_id": visit.matched_rule.id if visit.matched_rule and not visit.matched_rule.id.startswith('default') else None
                 }
 

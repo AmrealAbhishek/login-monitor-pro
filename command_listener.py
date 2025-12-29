@@ -1108,6 +1108,235 @@ class CommandListener:
             "message": "USB enabled. Re-plug devices to reconnect."
         }
 
+    def cmd_install_app(self, args: dict) -> dict:
+        """Install application remotely via Homebrew or direct download.
+
+        Args:
+            app_name: Name of app (Homebrew cask name or URL to .dmg/.pkg)
+            source: 'brew' (default), 'dmg', or 'pkg'
+            url: Direct download URL for dmg/pkg
+            sudo_password: Required for some installations
+        """
+        app_name = args.get("app_name", "").strip()
+        source = args.get("source", "brew").lower()
+        url = args.get("url", "")
+
+        if not app_name and not url:
+            return {"success": False, "error": "app_name or url required"}
+
+        log(f"Installing app: {app_name or url} via {source}")
+
+        try:
+            if source == "brew":
+                # Install via Homebrew cask
+                result = subprocess.run(
+                    ["/opt/homebrew/bin/brew", "install", "--cask", app_name],
+                    capture_output=True, text=True, timeout=600
+                )
+                if result.returncode == 0:
+                    return {
+                        "success": True,
+                        "message": f"{app_name} installed successfully via Homebrew",
+                        "output": result.stdout
+                    }
+                else:
+                    # Try regular brew install if cask fails
+                    result2 = subprocess.run(
+                        ["/opt/homebrew/bin/brew", "install", app_name],
+                        capture_output=True, text=True, timeout=600
+                    )
+                    if result2.returncode == 0:
+                        return {
+                            "success": True,
+                            "message": f"{app_name} installed successfully via Homebrew",
+                            "output": result2.stdout
+                        }
+                    return {
+                        "success": False,
+                        "error": f"Brew install failed: {result.stderr or result2.stderr}"
+                    }
+
+            elif source == "dmg" and url:
+                # Download and mount DMG
+                dmg_path = Path("/tmp") / f"{app_name or 'app'}.dmg"
+
+                # Download
+                log(f"Downloading DMG from {url}")
+                download = subprocess.run(
+                    ["curl", "-L", "-o", str(dmg_path), url],
+                    capture_output=True, timeout=600
+                )
+                if download.returncode != 0:
+                    return {"success": False, "error": "Download failed"}
+
+                # Mount DMG
+                mount = subprocess.run(
+                    ["hdiutil", "attach", str(dmg_path), "-nobrowse"],
+                    capture_output=True, text=True, timeout=60
+                )
+                if mount.returncode != 0:
+                    return {"success": False, "error": f"Mount failed: {mount.stderr}"}
+
+                # Find mounted volume
+                volume_line = [l for l in mount.stdout.split('\n') if '/Volumes/' in l]
+                if not volume_line:
+                    return {"success": False, "error": "Could not find mounted volume"}
+
+                volume_path = volume_line[0].split('/Volumes/')[-1]
+                volume_path = f"/Volumes/{volume_path.split()[0] if ' ' in volume_path else volume_path}"
+
+                # Find .app in volume
+                apps = list(Path(volume_path).glob("*.app"))
+                if apps:
+                    app_path = apps[0]
+                    dest = Path("/Applications") / app_path.name
+
+                    # Copy to Applications
+                    subprocess.run(["cp", "-R", str(app_path), str(dest)], timeout=120)
+
+                    # Unmount
+                    subprocess.run(["hdiutil", "detach", volume_path], capture_output=True)
+
+                    # Cleanup
+                    dmg_path.unlink(missing_ok=True)
+
+                    return {
+                        "success": True,
+                        "message": f"{app_path.name} installed to /Applications"
+                    }
+                else:
+                    subprocess.run(["hdiutil", "detach", volume_path], capture_output=True)
+                    return {"success": False, "error": "No .app found in DMG"}
+
+            elif source == "pkg" and url:
+                # Download and install PKG
+                pkg_path = Path("/tmp") / f"{app_name or 'app'}.pkg"
+
+                # Download
+                log(f"Downloading PKG from {url}")
+                download = subprocess.run(
+                    ["curl", "-L", "-o", str(pkg_path), url],
+                    capture_output=True, timeout=600
+                )
+                if download.returncode != 0:
+                    return {"success": False, "error": "Download failed"}
+
+                # Install PKG (requires sudo - may prompt or use stored credentials)
+                install = subprocess.run(
+                    ["sudo", "-n", "installer", "-pkg", str(pkg_path), "-target", "/"],
+                    capture_output=True, text=True, timeout=300
+                )
+
+                # Cleanup
+                pkg_path.unlink(missing_ok=True)
+
+                if install.returncode == 0:
+                    return {
+                        "success": True,
+                        "message": f"Package installed successfully"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Installation failed: {install.stderr}",
+                        "note": "PKG installation may require admin privileges"
+                    }
+
+            else:
+                return {"success": False, "error": f"Invalid source: {source}. Use 'brew', 'dmg', or 'pkg'"}
+
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Installation timed out"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_uninstall_app(self, args: dict) -> dict:
+        """Uninstall application.
+
+        Args:
+            app_name: Name of app to uninstall
+            source: 'brew' (for Homebrew apps) or 'app' (for /Applications)
+        """
+        app_name = args.get("app_name", "").strip()
+        source = args.get("source", "app").lower()
+
+        if not app_name:
+            return {"success": False, "error": "app_name required"}
+
+        try:
+            if source == "brew":
+                result = subprocess.run(
+                    ["/opt/homebrew/bin/brew", "uninstall", "--cask", app_name],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result.returncode == 0:
+                    return {"success": True, "message": f"{app_name} uninstalled via Homebrew"}
+                # Try regular uninstall
+                result2 = subprocess.run(
+                    ["/opt/homebrew/bin/brew", "uninstall", app_name],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result2.returncode == 0:
+                    return {"success": True, "message": f"{app_name} uninstalled via Homebrew"}
+                return {"success": False, "error": result.stderr or result2.stderr}
+
+            else:
+                # Remove from /Applications
+                app_path = Path("/Applications") / f"{app_name}.app"
+                if not app_path.exists():
+                    # Try case-insensitive search
+                    for app in Path("/Applications").glob("*.app"):
+                        if app.stem.lower() == app_name.lower():
+                            app_path = app
+                            break
+
+                if app_path.exists():
+                    subprocess.run(["rm", "-rf", str(app_path)], timeout=60)
+                    return {"success": True, "message": f"{app_path.name} removed from /Applications"}
+                else:
+                    return {"success": False, "error": f"App not found: {app_name}"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_list_apps(self, args: dict) -> dict:
+        """List installed applications."""
+        try:
+            apps = []
+
+            # List /Applications
+            for app in sorted(Path("/Applications").glob("*.app")):
+                apps.append({
+                    "name": app.stem,
+                    "path": str(app),
+                    "source": "app"
+                })
+
+            # List Homebrew casks
+            try:
+                result = subprocess.run(
+                    ["/opt/homebrew/bin/brew", "list", "--cask"],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    for cask in result.stdout.strip().split('\n'):
+                        if cask:
+                            apps.append({
+                                "name": cask,
+                                "source": "brew"
+                            })
+            except:
+                pass
+
+            return {
+                "success": True,
+                "apps": apps,
+                "count": len(apps)
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     # =========================================================================
     # MAIN LOOP
     # =========================================================================
@@ -1172,6 +1401,13 @@ class CommandListener:
             "disableusb": self.cmd_disable_usb,
             "enable_usb": self.cmd_enable_usb,
             "enableusb": self.cmd_enable_usb,
+            # App management commands
+            "install_app": self.cmd_install_app,
+            "installapp": self.cmd_install_app,
+            "uninstall_app": self.cmd_uninstall_app,
+            "uninstallapp": self.cmd_uninstall_app,
+            "list_apps": self.cmd_list_apps,
+            "listapps": self.cmd_list_apps,
         }
 
         handler = handlers.get(cmd_name)

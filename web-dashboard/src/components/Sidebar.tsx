@@ -27,6 +27,7 @@ import {
   Sun,
   Moon,
   Circle,
+  Package,
 } from 'lucide-react';
 
 const navItems = [
@@ -42,6 +43,7 @@ const adminItems = [
   { href: '/admin/url-rules', label: 'URL Rules', icon: Globe },
   { href: '/admin/activity-rules', label: 'Activity Rules', icon: Zap },
   { href: '/admin/groups', label: 'Device Groups', icon: Users },
+  { href: '/admin/apps', label: 'App Management', icon: Package },
 ];
 
 interface UserInfo {
