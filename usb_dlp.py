@@ -14,6 +14,7 @@ import hashlib
 import subprocess
 import threading
 import re
+import socket
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -102,6 +103,10 @@ class USBDLPMonitor:
         self.device_id = supabase_config.get("device_id", self.config.get("device_id", ""))
         self.supabase_url = supabase_config.get("url", self.config.get("supabase_url", ""))
         self.supabase_key = supabase_config.get("anon_key", self.config.get("supabase_key", ""))
+
+        # Get device context for admin visibility
+        self.hostname = socket.gethostname()
+        self.username = os.getenv("USER", "unknown")
 
         self.connected_devices: Dict[str, USBDevice] = {}
         self.monitored_volumes: Set[str] = set()
@@ -313,6 +318,8 @@ class USBDLPMonitor:
 
         event_data = {
             "device_id": self.device_id,
+            "hostname": self.hostname,
+            "username": self.username,
             "event_type": event_type,
             "usb_name": device.name,
             "usb_vendor": device.vendor,

@@ -12,6 +12,7 @@ import json
 import time
 import subprocess
 import re
+import socket
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
@@ -230,6 +231,10 @@ class ShadowITDetector:
         self.device_id = supabase_config.get("device_id", self.config.get("device_id", ""))
         self.supabase_url = supabase_config.get("url", self.config.get("supabase_url", ""))
         self.supabase_key = supabase_config.get("anon_key", self.config.get("supabase_key", ""))
+
+        # Get device context for admin visibility
+        self.hostname = socket.gethostname()
+        self.username = os.getenv("USER", "unknown")
 
         # Detection settings
         dlp_config = self.config.get("dlp", {})
@@ -602,6 +607,8 @@ class ShadowITDetector:
         """Log Shadow IT detection to Supabase."""
         event_data = {
             "device_id": self.device_id,
+            "hostname": self.hostname,
+            "username": self.username,
             "app_name": detection['app_name'],
             "app_bundle_id": detection.get('app_bundle_id', ''),
             "app_category": detection['app_category'],

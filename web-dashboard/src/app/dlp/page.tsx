@@ -3,6 +3,13 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import { useTheme } from '@/contexts/ThemeContext';
+import {
+  Usb, Clipboard, UserX, FolderSync, Keyboard, Link2,
+  RefreshCw, AlertTriangle, ShieldAlert, Eye, Copy, X,
+  HardDrive, FileWarning, Search, Download, Upload, Clock,
+  User, Monitor, ArrowLeft, Loader2
+} from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -14,6 +21,8 @@ type Tab = 'usb' | 'clipboard' | 'shadow_it' | 'files' | 'keystrokes' | 'siem';
 interface USBEvent {
   id: string;
   device_id: string;
+  hostname?: string;
+  username?: string;
   event_type: string;
   usb_name: string;
   usb_vendor: string;
@@ -27,8 +36,11 @@ interface USBEvent {
 interface ClipboardEvent {
   id: string;
   device_id: string;
+  hostname?: string;
+  username?: string;
   content_type: string;
   content_preview: string;
+  content_forensic?: string;
   content_length: number;
   source_app: string;
   destination_app: string;
@@ -40,6 +52,8 @@ interface ClipboardEvent {
 interface ShadowITDetection {
   id: string;
   device_id: string;
+  hostname?: string;
+  username?: string;
   app_name: string;
   app_category: string;
   url_accessed: string;
@@ -62,12 +76,19 @@ interface FileTransfer {
 }
 
 export default function DLPPage() {
+  const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('usb');
   const [usbEvents, setUsbEvents] = useState<USBEvent[]>([]);
   const [clipboardEvents, setClipboardEvents] = useState<ClipboardEvent[]>([]);
   const [shadowIT, setShadowIT] = useState<ShadowITDetection[]>([]);
   const [fileTransfers, setFileTransfers] = useState<FileTransfer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forensicModal, setForensicModal] = useState<{ isOpen: boolean; content: string; type: string; user?: string }>({
+    isOpen: false,
+    content: '',
+    type: '',
+    user: ''
+  });
   const [stats, setStats] = useState({
     totalUSB: 0,
     blockedUSB: 0,
@@ -85,7 +106,6 @@ export default function DLPPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load USB events
       const { data: usb } = await supabase
         .from('usb_events')
         .select('*')
@@ -93,7 +113,6 @@ export default function DLPPage() {
         .limit(100);
       if (usb) setUsbEvents(usb);
 
-      // Load clipboard events
       const { data: clipboard } = await supabase
         .from('clipboard_events')
         .select('*')
@@ -101,7 +120,6 @@ export default function DLPPage() {
         .limit(100);
       if (clipboard) setClipboardEvents(clipboard);
 
-      // Load Shadow IT
       const { data: shadow } = await supabase
         .from('shadow_it_detections')
         .select('*')
@@ -109,7 +127,6 @@ export default function DLPPage() {
         .limit(100);
       if (shadow) setShadowIT(shadow);
 
-      // Load file transfers
       const { data: files } = await supabase
         .from('file_transfer_events')
         .select('*')
@@ -117,7 +134,6 @@ export default function DLPPage() {
         .limit(100);
       if (files) setFileTransfers(files);
 
-      // Calculate stats
       setStats({
         totalUSB: usb?.length || 0,
         blockedUSB: usb?.filter(e => e.action_taken === 'blocked').length || 0,
@@ -150,39 +166,76 @@ export default function DLPPage() {
 
   const getSeverityColor = (level: string) => {
     switch (level) {
-      case 'critical': return 'bg-red-500';
-      case 'high': return 'bg-orange-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-green-500';
-      default: return 'bg-gray-500';
+      case 'critical':
+        return 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/50';
+      case 'high':
+        return 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/50';
+      case 'medium':
+        return 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/50';
+      case 'low':
+        return 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/50';
+      default:
+        return 'bg-gray-100 dark:bg-gray-500/20 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-500/50';
+    }
+  };
+
+  const decodeForensic = (base64: string): string => {
+    try {
+      return atob(base64);
+    } catch {
+      return '[Unable to decode]';
+    }
+  };
+
+  const handleRevealContent = (event: ClipboardEvent) => {
+    if (event.content_forensic) {
+      setForensicModal({
+        isOpen: true,
+        content: decodeForensic(event.content_forensic),
+        type: event.sensitive_type || 'Sensitive Data',
+        user: event.username || event.hostname || 'Unknown'
+      });
     }
   };
 
   const tabs = [
-    { id: 'usb' as Tab, label: 'USB & Devices', icon: '💾', count: stats.totalUSB },
-    { id: 'clipboard' as Tab, label: 'Clipboard', icon: '📋', count: stats.sensitiveClipboard },
-    { id: 'shadow_it' as Tab, label: 'Shadow IT', icon: '👤', count: stats.shadowITHigh },
-    { id: 'files' as Tab, label: 'File Transfers', icon: '📁', count: stats.sensitiveFiles },
-    { id: 'keystrokes' as Tab, label: 'Keystrokes', icon: '⌨️', count: 0 },
-    { id: 'siem' as Tab, label: 'SIEM/Webhooks', icon: '🔗', count: 0 },
+    { id: 'usb' as Tab, label: 'USB & Devices', icon: Usb, count: stats.totalUSB },
+    { id: 'clipboard' as Tab, label: 'Clipboard', icon: Clipboard, count: stats.sensitiveClipboard },
+    { id: 'shadow_it' as Tab, label: 'Shadow IT', icon: UserX, count: stats.shadowITHigh },
+    { id: 'files' as Tab, label: 'File Transfers', icon: FolderSync, count: stats.sensitiveFiles },
+    { id: 'keystrokes' as Tab, label: 'Keystrokes', icon: Keyboard, count: 0 },
+    { id: 'siem' as Tab, label: 'SIEM/Webhooks', icon: Link2, count: 0 },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0a0a0a]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600 dark:text-blue-400 mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Loading DLP data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] text-gray-900 dark:text-white p-6 transition-colors">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <Link href="/" className="text-gray-400 hover:text-white text-sm mb-2 block">
-              ← Back to Dashboard
+            <Link href="/" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm mb-2 flex items-center gap-1">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
             </Link>
             <h1 className="text-2xl font-bold">Data Loss Prevention (DLP)</h1>
-            <p className="text-gray-400">Monitor and protect sensitive data</p>
+            <p className="text-gray-500 dark:text-gray-400">Monitor and protect sensitive data</p>
           </div>
           <button
             onClick={loadData}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors"
           >
+            <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
         </div>
@@ -190,463 +243,480 @@ export default function DLPPage() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-3xl font-bold">{stats.totalUSB}</div>
-          <div className="text-gray-400 text-sm">USB Events</div>
+        <div className="bg-white dark:bg-[#111] rounded-xl p-4 border border-gray-200 dark:border-[#222]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
+              <HardDrive className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{stats.totalUSB}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm">USB Events</div>
+            </div>
+          </div>
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-red-400">{stats.blockedUSB}</div>
-          <div className="text-gray-400 text-sm">Blocked</div>
+        <div className="bg-white dark:bg-[#111] rounded-xl p-4 border border-gray-200 dark:border-[#222]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 dark:bg-red-500/20 rounded-lg">
+              <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.blockedUSB}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm">Blocked</div>
+            </div>
+          </div>
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-orange-400">{stats.sensitiveClipboard}</div>
-          <div className="text-gray-400 text-sm">Sensitive Clipboard</div>
+        <div className="bg-white dark:bg-[#111] rounded-xl p-4 border border-gray-200 dark:border-[#222]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 dark:bg-orange-500/20 rounded-lg">
+              <Clipboard className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.sensitiveClipboard}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm">Sensitive Clipboard</div>
+            </div>
+          </div>
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-yellow-400">{stats.shadowITHigh}</div>
-          <div className="text-gray-400 text-sm">High-Risk Shadow IT</div>
+        <div className="bg-white dark:bg-[#111] rounded-xl p-4 border border-gray-200 dark:border-[#222]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-100 dark:bg-yellow-500/20 rounded-lg">
+              <UserX className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.shadowITHigh}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm">High-Risk Shadow IT</div>
+            </div>
+          </div>
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-purple-400">{stats.sensitiveFiles}</div>
-          <div className="text-gray-400 text-sm">Sensitive Transfers</div>
+        <div className="bg-white dark:bg-[#111] rounded-xl p-4 border border-gray-200 dark:border-[#222]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 dark:bg-purple-500/20 rounded-lg">
+              <FileWarning className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.sensitiveFiles}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm">Sensitive Transfers</div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-700 pb-4">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-              activeTab === tab.id
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            <span>{tab.icon}</span>
-            <span>{tab.label}</span>
-            {tab.count > 0 && (
-              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-200 dark:border-[#222] pb-4">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-[#111] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#1a1a1a] border border-gray-200 dark:border-[#222]'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+              {tab.count > 0 && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  activeTab === tab.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-gray-400">Loading DLP data...</p>
+      {/* USB Events Tab */}
+      {activeTab === 'usb' && (
+        <div className="bg-white dark:bg-[#111] rounded-xl overflow-hidden border border-gray-200 dark:border-[#222]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#222]">
+            <h2 className="font-semibold flex items-center gap-2">
+              <Usb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              USB Device Events
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Track USB connections and file transfers</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-[#0a0a0a]">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Time</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Event</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Device</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">File</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Size</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usbEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No USB events recorded yet
+                    </td>
+                  </tr>
+                ) : (
+                  usbEvents.map(event => (
+                    <tr key={event.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(event.created_at)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{event.username || '-'}</span>
+                          <span className="text-xs text-gray-400">{event.hostname || ''}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs border ${
+                          event.event_type === 'blocked' ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/50' :
+                          event.event_type === 'file_copied' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/50' :
+                          'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/50'
+                        }`}>
+                          {event.event_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium">{event.usb_name || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{event.file_name || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        {event.file_size ? formatBytes(event.file_size) : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          event.action_taken === 'blocked' ? 'bg-red-600 text-white' :
+                          event.action_taken === 'alerted' ? 'bg-orange-600 text-white' :
+                          'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        }`}>
+                          {event.action_taken}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      ) : (
-        <>
-          {/* USB Events Tab */}
-          {activeTab === 'usb' && (
-            <div className="bg-gray-800 rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-gray-700">
-                <h2 className="font-semibold">USB Device Events</h2>
-                <p className="text-gray-400 text-sm">Track USB connections and file transfers</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-900">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm">Time</th>
-                      <th className="px-4 py-3 text-left text-sm">Event</th>
-                      <th className="px-4 py-3 text-left text-sm">Device</th>
-                      <th className="px-4 py-3 text-left text-sm">File</th>
-                      <th className="px-4 py-3 text-left text-sm">Size</th>
-                      <th className="px-4 py-3 text-left text-sm">Action</th>
+      )}
+
+      {/* Clipboard Tab */}
+      {activeTab === 'clipboard' && (
+        <div className="bg-white dark:bg-[#111] rounded-xl overflow-hidden border border-gray-200 dark:border-[#222]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#222]">
+            <h2 className="font-semibold flex items-center gap-2">
+              <Clipboard className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              Clipboard Monitoring
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Track copy/paste of sensitive data</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-[#0a0a0a]">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Time</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Sensitive</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">App</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Length</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Preview</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clipboardEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No clipboard events recorded yet
+                    </td>
+                  </tr>
+                ) : (
+                  clipboardEvents.map(event => (
+                    <tr key={event.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(event.created_at)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            {event.username || '-'}
+                          </span>
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                            <Monitor className="w-3 h-3" />
+                            {event.hostname || ''}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {event.sensitive_data_detected ? (
+                          <span className="px-2 py-1 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded text-xs border border-red-200 dark:border-red-500/50 flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" />
+                            {event.sensitive_type || 'Sensitive'}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">{event.destination_app || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        {event.content_length} chars
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                        {event.content_preview?.substring(0, 50) || '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {event.sensitive_data_detected && event.content_forensic ? (
+                          <button
+                            onClick={() => handleRevealContent(event)}
+                            className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-xs flex items-center gap-1"
+                            title="Reveal content for forensic investigation"
+                          >
+                            <Eye className="w-3 h-3" />
+                            Reveal
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-xs">-</span>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {usbEvents.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                          No USB events recorded yet
-                        </td>
-                      </tr>
-                    ) : (
-                      usbEvents.map(event => (
-                        <tr key={event.id} className="border-t border-gray-700 hover:bg-gray-750">
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {formatTime(event.created_at)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              event.event_type === 'blocked' ? 'bg-red-500/20 text-red-400' :
-                              event.event_type === 'file_copied' ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {event.event_type}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">{event.usb_name || '-'}</td>
-                          <td className="px-4 py-3 text-sm">{event.file_name || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {event.file_size ? formatBytes(event.file_size) : '-'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              event.action_taken === 'blocked' ? 'bg-red-500 text-white' :
-                              event.action_taken === 'alerted' ? 'bg-orange-500 text-white' :
-                              'bg-gray-600 text-gray-300'
-                            }`}>
-                              {event.action_taken}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-          {/* Clipboard Tab */}
-          {activeTab === 'clipboard' && (
-            <div className="bg-gray-800 rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-gray-700">
-                <h2 className="font-semibold">Clipboard Monitoring</h2>
-                <p className="text-gray-400 text-sm">Track copy/paste of sensitive data</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-900">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm">Time</th>
-                      <th className="px-4 py-3 text-left text-sm">Sensitive</th>
-                      <th className="px-4 py-3 text-left text-sm">Type</th>
-                      <th className="px-4 py-3 text-left text-sm">App</th>
-                      <th className="px-4 py-3 text-left text-sm">Length</th>
-                      <th className="px-4 py-3 text-left text-sm">Preview</th>
+      {/* Shadow IT Tab */}
+      {activeTab === 'shadow_it' && (
+        <div className="bg-white dark:bg-[#111] rounded-xl overflow-hidden border border-gray-200 dark:border-[#222]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#222]">
+            <h2 className="font-semibold flex items-center gap-2">
+              <UserX className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              Shadow IT & AI Detection
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Unauthorized apps, AI tools, and services</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-[#0a0a0a]">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Last Seen</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Risk</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Category</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">App/URL</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shadowIT.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No Shadow IT detected yet
+                    </td>
+                  </tr>
+                ) : (
+                  shadowIT.map(item => (
+                    <tr key={item.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(item.last_detected)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.username || '-'}</span>
+                          <span className="text-xs text-gray-400">{item.hostname || ''}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs border ${getSeverityColor(item.risk_level)}`}>
+                          {item.risk_level?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                          {item.app_category?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{item.app_name}</div>
+                        {item.url_accessed && (
+                          <div className="text-xs text-gray-400 truncate max-w-xs">
+                            {item.url_accessed}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">{item.detection_count}x</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {clipboardEvents.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                          No clipboard events recorded yet
-                        </td>
-                      </tr>
-                    ) : (
-                      clipboardEvents.map(event => (
-                        <tr key={event.id} className="border-t border-gray-700 hover:bg-gray-750">
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {formatTime(event.created_at)}
-                          </td>
-                          <td className="px-4 py-3">
-                            {event.sensitive_data_detected ? (
-                              <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">
-                                {event.sensitive_type || 'Sensitive'}
-                              </span>
-                            ) : (
-                              <span className="text-gray-500">-</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm">{event.content_type}</td>
-                          <td className="px-4 py-3 text-sm">{event.destination_app || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {event.content_length} chars
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-400 max-w-xs truncate">
-                            {event.content_preview?.substring(0, 50) || '-'}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-          {/* Shadow IT Tab */}
-          {activeTab === 'shadow_it' && (
-            <div className="bg-gray-800 rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-gray-700">
-                <h2 className="font-semibold">Shadow IT & AI Detection</h2>
-                <p className="text-gray-400 text-sm">Unauthorized apps, AI tools, and services</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-900">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm">Last Seen</th>
-                      <th className="px-4 py-3 text-left text-sm">Risk</th>
-                      <th className="px-4 py-3 text-left text-sm">Category</th>
-                      <th className="px-4 py-3 text-left text-sm">App/URL</th>
-                      <th className="px-4 py-3 text-left text-sm">Count</th>
+      {/* File Transfers Tab */}
+      {activeTab === 'files' && (
+        <div className="bg-white dark:bg-[#111] rounded-xl overflow-hidden border border-gray-200 dark:border-[#222]">
+          <div className="p-4 border-b border-gray-200 dark:border-[#222]">
+            <h2 className="font-semibold flex items-center gap-2">
+              <FolderSync className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              File Transfer Monitoring
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Track uploads, downloads, and file movements</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-[#0a0a0a]">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Time</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Type</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">File</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Destination</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Size</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Sensitive</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fileTransfers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No file transfers recorded yet
+                    </td>
+                  </tr>
+                ) : (
+                  fileTransfers.map(transfer => (
+                    <tr key={transfer.id} className="border-t border-gray-100 dark:border-[#1a1a1a] hover:bg-gray-50 dark:hover:bg-[#0a0a0a]">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        {formatTime(transfer.created_at)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs border flex items-center gap-1 w-fit ${
+                          transfer.transfer_type === 'upload' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/50' :
+                          transfer.transfer_type === 'download' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/50' :
+                          'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/50'
+                        }`}>
+                          {transfer.transfer_type === 'upload' ? <Upload className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                          {transfer.transfer_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">{transfer.file_name || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                          {transfer.destination_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        {transfer.file_size ? formatBytes(transfer.file_size) : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {transfer.sensitive_detected ? (
+                          <span className="px-2 py-1 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded text-xs border border-red-200 dark:border-red-500/50 flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" />
+                            Sensitive
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {shadowIT.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                          No Shadow IT detected yet
-                        </td>
-                      </tr>
-                    ) : (
-                      shadowIT.map(item => (
-                        <tr key={item.id} className="border-t border-gray-700 hover:bg-gray-750">
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {formatTime(item.last_detected)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs text-white ${getSeverityColor(item.risk_level)}`}>
-                              {item.risk_level?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-1 bg-gray-700 rounded text-xs">
-                              {item.app_category?.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium">{item.app_name}</div>
-                            {item.url_accessed && (
-                              <div className="text-xs text-gray-500 truncate max-w-xs">
-                                {item.url_accessed}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm">{item.detection_count}x</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-          {/* File Transfers Tab */}
-          {activeTab === 'files' && (
-            <div className="bg-gray-800 rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-gray-700">
-                <h2 className="font-semibold">File Transfer Monitoring</h2>
-                <p className="text-gray-400 text-sm">Track uploads, downloads, and file movements</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-900">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm">Time</th>
-                      <th className="px-4 py-3 text-left text-sm">Type</th>
-                      <th className="px-4 py-3 text-left text-sm">File</th>
-                      <th className="px-4 py-3 text-left text-sm">Destination</th>
-                      <th className="px-4 py-3 text-left text-sm">Size</th>
-                      <th className="px-4 py-3 text-left text-sm">Sensitive</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fileTransfers.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                          No file transfers recorded yet
-                        </td>
-                      </tr>
-                    ) : (
-                      fileTransfers.map(transfer => (
-                        <tr key={transfer.id} className="border-t border-gray-700 hover:bg-gray-750">
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {formatTime(transfer.created_at)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              transfer.transfer_type === 'upload' ? 'bg-orange-500/20 text-orange-400' :
-                              transfer.transfer_type === 'download' ? 'bg-green-500/20 text-green-400' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {transfer.transfer_type}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">{transfer.file_name || '-'}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className="px-2 py-1 bg-gray-700 rounded text-xs">
-                              {transfer.destination_type}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {transfer.file_size ? formatBytes(transfer.file_size) : '-'}
-                          </td>
-                          <td className="px-4 py-3">
-                            {transfer.sensitive_detected ? (
-                              <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">
-                                Sensitive
-                              </span>
-                            ) : (
-                              <span className="text-gray-500">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+      {/* Keystrokes Tab */}
+      {activeTab === 'keystrokes' && (
+        <div className="bg-white dark:bg-[#111] rounded-xl p-6 border border-gray-200 dark:border-[#222]">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <Keyboard className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            Keystroke Monitoring
+          </h2>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Keyboard className="w-8 h-8 text-gray-400" />
             </div>
-          )}
-
-          {/* Keystrokes Tab */}
-          {activeTab === 'keystrokes' && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="font-semibold mb-4">Keystroke Monitoring</h2>
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">⌨️</div>
-                <p className="text-gray-400 mb-4">
-                  Keystroke logging captures typing patterns for security investigation.
-                </p>
-                <p className="text-sm text-gray-500 mb-6">
-                  Privacy Mode: Only keystroke counts are logged by default.<br/>
-                  Full logging can be enabled for specific devices during investigations.
-                </p>
-                <div className="bg-gray-700 rounded-lg p-4 max-w-md mx-auto text-left">
-                  <p className="text-sm font-mono text-gray-300">
-                    Requires: <span className="text-blue-400">pip3 install pynput</span>
-                  </p>
-                  <p className="text-sm font-mono text-gray-300 mt-2">
-                    Permission: <span className="text-yellow-400">Accessibility</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* SIEM Tab */}
-          {activeTab === 'siem' && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="font-semibold mb-4">SIEM & Webhook Integrations</h2>
-              <p className="text-gray-400 mb-6">
-                Export security events to external systems in real-time.
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              Keystroke logging captures typing patterns for security investigation.
+            </p>
+            <p className="text-sm text-gray-400 mb-6">
+              Privacy Mode: Only keystroke counts are logged by default.<br/>
+              Full logging can be enabled for specific devices during investigations.
+            </p>
+            <div className="bg-gray-50 dark:bg-[#0a0a0a] rounded-lg p-4 max-w-md mx-auto text-left border border-gray-200 dark:border-[#222]">
+              <p className="text-sm font-mono text-gray-600 dark:text-gray-300">
+                Requires: <span className="text-blue-600 dark:text-blue-400">pip3 install pynput</span>
               </p>
+              <p className="text-sm font-mono text-gray-600 dark:text-gray-300 mt-2">
+                Permission: <span className="text-yellow-600 dark:text-yellow-400">Accessibility</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Splunk */}
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-green-600 rounded flex items-center justify-center font-bold">
-                      S
-                    </div>
-                    <div>
-                      <div className="font-medium">Splunk</div>
-                      <div className="text-xs text-gray-400">HTTP Event Collector</div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Send events to Splunk HEC endpoint
-                  </p>
-                  <button className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">
-                    Configure
-                  </button>
-                </div>
+      {/* SIEM Tab */}
+      {activeTab === 'siem' && (
+        <div className="bg-white dark:bg-[#111] rounded-xl p-6 border border-gray-200 dark:border-[#222]">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            SIEM & Webhook Integrations
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            Export security events to external systems in real-time.
+          </p>
 
-                {/* Microsoft Sentinel */}
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center font-bold">
-                      MS
-                    </div>
-                    <div>
-                      <div className="font-medium">Microsoft Sentinel</div>
-                      <div className="text-xs text-gray-400">Log Analytics</div>
-                    </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { name: 'Splunk', sub: 'HTTP Event Collector', color: 'bg-green-600', letter: 'S' },
+              { name: 'Microsoft Sentinel', sub: 'Log Analytics', color: 'bg-blue-600', letter: 'MS' },
+              { name: 'Elasticsearch', sub: 'Index events', color: 'bg-yellow-500 text-black', letter: 'E' },
+              { name: 'Slack', sub: 'Webhook', color: 'bg-purple-600', letter: '#' },
+              { name: 'Microsoft Teams', sub: 'Incoming Webhook', color: 'bg-indigo-600', letter: 'T' },
+              { name: 'Custom Webhook', sub: 'HTTP POST', color: 'bg-gray-500', letter: '' },
+            ].map((item, i) => (
+              <div key={i} className="bg-gray-50 dark:bg-[#0a0a0a] rounded-lg p-4 border border-gray-200 dark:border-[#222]">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 ${item.color} rounded flex items-center justify-center font-bold text-white`}>
+                    {item.letter || <Link2 className="w-5 h-5" />}
                   </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Export to Azure Log Analytics workspace
-                  </p>
-                  <button className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">
-                    Configure
-                  </button>
-                </div>
-
-                {/* Elastic */}
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-yellow-500 rounded flex items-center justify-center font-bold text-black">
-                      E
-                    </div>
-                    <div>
-                      <div className="font-medium">Elasticsearch</div>
-                      <div className="text-xs text-gray-400">Index events</div>
-                    </div>
+                  <div>
+                    <div className="font-medium">{item.name}</div>
+                    <div className="text-xs text-gray-400">{item.sub}</div>
                   </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Send events to Elasticsearch cluster
-                  </p>
-                  <button className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">
-                    Configure
-                  </button>
                 </div>
-
-                {/* Slack */}
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-purple-600 rounded flex items-center justify-center text-xl">
-                      #
-                    </div>
-                    <div>
-                      <div className="font-medium">Slack</div>
-                      <div className="text-xs text-gray-400">Webhook</div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Post alerts to Slack channel
-                  </p>
-                  <button className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">
-                    Configure
-                  </button>
-                </div>
-
-                {/* Teams */}
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded flex items-center justify-center font-bold">
-                      T
-                    </div>
-                    <div>
-                      <div className="font-medium">Microsoft Teams</div>
-                      <div className="text-xs text-gray-400">Incoming Webhook</div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Post alerts to Teams channel
-                  </p>
-                  <button className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">
-                    Configure
-                  </button>
-                </div>
-
-                {/* Custom Webhook */}
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gray-500 rounded flex items-center justify-center text-xl">
-                      🔗
-                    </div>
-                    <div>
-                      <div className="font-medium">Custom Webhook</div>
-                      <div className="text-xs text-gray-400">HTTP POST</div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Send JSON events to any endpoint
-                  </p>
-                  <button className="w-full py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">
-                    Configure
-                  </button>
-                </div>
+                <button className="w-full py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-sm transition-colors">
+                  Configure
+                </button>
               </div>
+            ))}
+          </div>
 
-              <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-                <h3 className="font-medium mb-2">Configuration</h3>
-                <p className="text-sm text-gray-400">
-                  Add integrations to your <code className="bg-gray-800 px-2 py-1 rounded">config.json</code>:
-                </p>
-                <pre className="mt-3 bg-gray-900 p-4 rounded text-sm overflow-x-auto">
+          <div className="mt-6 p-4 bg-gray-50 dark:bg-[#0a0a0a] rounded-lg border border-gray-200 dark:border-[#222]">
+            <h3 className="font-medium mb-2">Configuration</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Add integrations to your <code className="bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">config.json</code>:
+            </p>
+            <pre className="mt-3 bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto">
 {`"siem_integrations": [
   {
     "integration_type": "slack",
@@ -655,11 +725,67 @@ export default function DLPPage() {
     "enabled": true
   }
 ]`}
-                </pre>
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Forensic Reveal Modal */}
+      {forensicModal.isOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#111] rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden border border-gray-200 dark:border-[#222]">
+            <div className="p-4 border-b border-gray-200 dark:border-[#222] flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-lg text-red-600 dark:text-red-400 flex items-center gap-2">
+                  <Search className="w-5 h-5" />
+                  Forensic Content Reveal
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Sensitive data copied by: <span className="text-gray-900 dark:text-white font-medium">{forensicModal.user}</span>
+                </p>
               </div>
+              <button
+                onClick={() => setForensicModal({ ...forensicModal, isOpen: false })}
+                className="text-gray-400 hover:text-gray-900 dark:hover:text-white p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
-        </>
+            <div className="p-4 border-b border-gray-200 dark:border-[#222] bg-red-50 dark:bg-red-900/20">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="font-semibold">WARNING: Sensitive Data</span>
+              </div>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                This content contains <span className="font-bold text-red-600 dark:text-red-300">{forensicModal.type}</span>.
+                This information is being revealed for forensic investigation purposes only.
+                Access to this data is logged for audit compliance.
+              </p>
+            </div>
+            <div className="p-4 overflow-auto max-h-[50vh]">
+              <pre className="bg-gray-100 dark:bg-[#0a0a0a] p-4 rounded text-sm whitespace-pre-wrap break-all font-mono text-yellow-700 dark:text-yellow-200 border border-gray-200 dark:border-[#222]">
+                {forensicModal.content}
+              </pre>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-[#222] flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(forensicModal.content);
+                }}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm flex items-center gap-2 transition-colors"
+              >
+                <Copy className="w-4 h-4" />
+                Copy to Clipboard
+              </button>
+              <button
+                onClick={() => setForensicModal({ ...forensicModal, isOpen: false })}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -13,6 +13,8 @@ import time
 import hashlib
 import re
 import subprocess
+import socket
+import base64
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -150,6 +152,10 @@ class ClipboardDLPMonitor:
         self.device_id = supabase_config.get("device_id", self.config.get("device_id", ""))
         self.supabase_url = supabase_config.get("url", self.config.get("supabase_url", ""))
         self.supabase_key = supabase_config.get("anon_key", self.config.get("supabase_key", ""))
+
+        # Get device context for admin visibility
+        self.hostname = socket.gethostname()
+        self.username = os.getenv("USER", "unknown")
 
         self.last_content_hash = ""
         self.last_content = ""
@@ -341,10 +347,19 @@ class ClipboardDLPMonitor:
             severity_order = {'low': 0, 'medium': 1, 'high': 2, 'critical': 3}
             highest_severity = max(detections, key=lambda d: severity_order.get(d['severity'], 0))['severity']
 
+        # Store forensic content (base64 encoded) for admin investigation
+        # Only store for sensitive content, max 10KB
+        forensic_content = None
+        if is_sensitive and len(content) <= 10240:
+            forensic_content = base64.b64encode(content.encode('utf-8', errors='replace')).decode('ascii')
+
         event_data = {
             "device_id": self.device_id,
+            "hostname": self.hostname,
+            "username": self.username,
             "content_type": content_type,
             "content_preview": preview if not is_sensitive else f"[REDACTED - {', '.join(sensitive_types)}]",
+            "content_forensic": forensic_content,  # Base64 encoded for admin reveal
             "content_hash": self._get_content_hash(content),
             "content_length": len(content),
             "source_app": source_app,
