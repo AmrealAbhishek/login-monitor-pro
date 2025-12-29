@@ -1465,12 +1465,12 @@ class CommandListener:
             vnc_port = 5900
             ws_port = args.get("ws_port", 6080)
 
-            # Check if Screen Sharing is enabled
+            # Check if Screen Sharing is enabled (use netstat as lsof needs sudo)
             result = subprocess.run(
-                ["lsof", "-i", f":{vnc_port}"],
+                ["netstat", "-an"],
                 capture_output=True, text=True
             )
-            if result.returncode != 0:
+            if f".{vnc_port}" not in result.stdout:
                 return {
                     "success": False,
                     "error": "Screen Sharing not enabled. Enable it in System Settings > General > Sharing > Screen Sharing"

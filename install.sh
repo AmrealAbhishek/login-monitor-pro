@@ -110,6 +110,15 @@ if ! command -v imagesnap &> /dev/null && ! [[ -f /opt/homebrew/bin/imagesnap ]]
 fi
 echo -e "${GREEN}✓ imagesnap${NC}"
 
+# Install cloudflared for VNC tunneling
+if ! command -v cloudflared &> /dev/null && ! [[ -f /opt/homebrew/bin/cloudflared ]]; then
+    echo "Installing cloudflared for Remote Desktop..."
+    brew install cloudflared 2>/dev/null || true
+fi
+if command -v cloudflared &> /dev/null || [[ -f /opt/homebrew/bin/cloudflared ]]; then
+    echo -e "${GREEN}✓ cloudflared (for Remote Desktop)${NC}"
+fi
+
 # Python path
 # Find the best Python to use - prefer SYSTEM Python for consistency
 # System Python is more likely to already have permissions granted
@@ -147,7 +156,7 @@ echo -e "${CYAN}Using Python: $PYTHON_CMD${NC}"
 
 # Install Python packages for the selected Python
 echo "Installing Python packages..."
-$PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase 2>/dev/null || true
+$PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase websockify 2>/dev/null || true
 
 # Also install for other Python versions (in case user runs scripts manually)
 for PY in /Library/Frameworks/Python.framework/Versions/*/bin/python3 /usr/local/bin/python3 /opt/homebrew/bin/python3 /Library/Developer/CommandLineTools/usr/bin/python3; do
@@ -575,6 +584,37 @@ PEOF
         echo ""
         echo -e "${YELLOW}After adding, restart with: loginmonitor restart${NC}"
         ;;
+    vnc)
+        echo -e "${CYAN}Setting up Remote Desktop (VNC)...${NC}"
+        echo ""
+        # Check if Screen Sharing is enabled
+        if lsof -i :5900 >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Screen Sharing is already enabled${NC}"
+        else
+            echo -e "${YELLOW}Screen Sharing is not enabled.${NC}"
+            echo ""
+            echo "Opening System Settings > Sharing..."
+            open "x-apple.systempreferences:com.apple.preferences.sharing?Services_ScreenSharing"
+            echo ""
+            echo -e "${YELLOW}Please:${NC}"
+            echo "  1. Turn ON 'Screen Sharing'"
+            echo "  2. Click 'Computer Settings...'"
+            echo "  3. Check 'VNC viewers may control screen with password'"
+            echo "  4. Set a VNC password"
+            echo ""
+            read -p "Press Enter after enabling Screen Sharing..." < /dev/tty
+        fi
+        # Check again
+        if lsof -i :5900 >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Screen Sharing is enabled and ready${NC}"
+            echo ""
+            echo "You can now use Remote Desktop from the web dashboard:"
+            echo -e "  ${CYAN}https://web-dashboard-inky.vercel.app/remote${NC}"
+        else
+            echo -e "${RED}Screen Sharing is still not enabled.${NC}"
+            echo "Please enable it manually in System Settings > Sharing"
+        fi
+        ;;
     uninstall)
         bash "$INSTALL_DIR/../login-monitor/uninstall.sh" 2>/dev/null || bash /Users/*/tool/login-monitor/uninstall.sh 2>/dev/null || echo "Run: bash /path/to/uninstall.sh"
         ;;
@@ -596,6 +636,7 @@ PEOF
         echo "  test       Trigger test event"
         echo "  location   Setup location permission (for GPS)"
         echo "  screen     Setup screen recording permission"
+        echo "  vnc        Setup Remote Desktop (Screen Sharing)"
         echo "  uninstall  Remove Login Monitor"
         echo "  version    Show version"
         echo ""
@@ -652,6 +693,10 @@ echo -e "   (or run ${GREEN}loginmonitor screen${NC} for guided setup)"
 echo ""
 echo -e "${YELLOW}3. Camera:${NC}"
 echo -e "   → Permission is requested automatically when needed"
+echo ""
+echo -e "${YELLOW}4. Remote Desktop (OPTIONAL):${NC}"
+echo -e "   ${GREEN}loginmonitor vnc${NC}"
+echo -e "   → Enable Screen Sharing for remote control from dashboard"
 echo ""
 echo -e "${CYAN}Other CLI Commands:${NC}"
 echo "  loginmonitor status   - Check if running"
