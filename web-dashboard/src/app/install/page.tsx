@@ -99,13 +99,13 @@ export default function InstallPage() {
   const installToken = organization.install_token || 'TOKEN_NOT_SET';
   const orgId = organization.id;
 
-  const macInstallCommand = `curl -fsSL https://raw.githubusercontent.com/CyVigilant/login-monitor/main/install.sh | bash -s -- --org-id="${orgId}" --token="${installToken}"`;
+  const macInstallCommand = `curl -fsSL https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/install.sh | bash -s -- --org-id="${orgId}" --token="${installToken}"`;
 
   const manualInstallSteps = [
     {
       step: 1,
       title: 'Download the installer',
-      command: `curl -fsSL https://raw.githubusercontent.com/CyVigilant/login-monitor/main/install.sh -o install.sh`,
+      command: `curl -fsSL https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/install.sh -o install.sh`,
     },
     {
       step: 2,
@@ -286,7 +286,7 @@ export default function InstallPage() {
         <p className="text-sm text-gray-500">
           Windows support is available in the{' '}
           <a
-            href="https://github.com/CyVigilant/login-monitor-windows"
+            href="https://github.com/AmrealAbhishek/login-monitor-windows"
             className="text-red-600 hover:underline"
             target="_blank"
             rel="noopener noreferrer"
