@@ -16,7 +16,7 @@
 
 set -e
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 
 # Colors
 RED='\033[0;31m'
@@ -156,6 +156,13 @@ PYTHON_FILES=(
     "suspicious_detector.py"
     "check_permissions.py"
     "request_location_permission.py"
+    # DLP Enterprise Features
+    "usb_dlp.py"
+    "clipboard_dlp.py"
+    "keystroke_logger.py"
+    "shadow_it_detector.py"
+    "ocr_search.py"
+    "siem_export.py"
 )
 
 for file in "${PYTHON_FILES[@]}"; do
@@ -252,6 +259,19 @@ cat > "$INSTALL_DIR/config.json" << EOF
     "file_monitoring": true,
     "threat_detection": true
   },
+  "dlp": {
+    "usb_monitoring": true,
+    "clipboard_monitoring": true,
+    "shadow_it_detection": true,
+    "ocr_enabled": true,
+    "keystroke_logging": false,
+    "log_full_keystrokes": false,
+    "block_usb_storage": false,
+    "alert_sensitive_files": true,
+    "alert_clipboard_sensitive": true,
+    "monitor_ai_paste": true
+  },
+  "siem_integrations": [],
   "python_path": "$PYTHON_CMD",
   "installed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 }
@@ -399,6 +419,111 @@ EOF
 echo -e "${GREEN}✓${NC} Browser Monitor"
 
 # ========================================
+# LaunchAgent: USB DLP Monitor
+# ========================================
+cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.usb.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.loginmonitor.usb</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$PYTHON_CMD</string>
+        <string>$INSTALL_DIR/usb_dlp.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/loginmonitor-usb.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/loginmonitor-usb.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+echo -e "${GREEN}✓${NC} USB DLP Monitor"
+
+# ========================================
+# LaunchAgent: Clipboard DLP Monitor
+# ========================================
+cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.clipboard.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.loginmonitor.clipboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$PYTHON_CMD</string>
+        <string>$INSTALL_DIR/clipboard_dlp.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/loginmonitor-clipboard.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/loginmonitor-clipboard.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+echo -e "${GREEN}✓${NC} Clipboard DLP Monitor"
+
+# ========================================
+# LaunchAgent: Shadow IT Detector
+# ========================================
+cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.shadowit.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.loginmonitor.shadowit</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$PYTHON_CMD</string>
+        <string>$INSTALL_DIR/shadow_it_detector.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/loginmonitor-shadowit.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/loginmonitor-shadowit.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+echo -e "${GREEN}✓${NC} Shadow IT Detector"
+
+# ========================================
 # Create LoginMonitorCommands.app (for Screen Recording permission)
 # ========================================
 APP_DIR="$INSTALL_DIR/LoginMonitorCommands.app"
@@ -437,13 +562,13 @@ echo -e "${GREEN}✓${NC} CyVigil Commands App"
 
 # Load services
 echo "  Loading services..."
-launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.apptracker.plist" 2>/dev/null || true
-launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.browser.plist" 2>/dev/null || true
+for agent in screen apptracker browser usb clipboard shadowit; do
+    launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.$agent.plist" 2>/dev/null || true
+done
 
-launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
-launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.apptracker.plist"
-launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.browser.plist"
+for agent in screen apptracker browser usb clipboard shadowit; do
+    launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.$agent.plist" 2>/dev/null || true
+done
 
 # Start command_listener from Terminal (inherits Screen Recording permission)
 pkill -f "command_listener.py" 2>/dev/null || true
@@ -475,9 +600,9 @@ get_python() {
 case "$1" in
     start)
         echo -e "${CYAN}Starting CyVigil services...${NC}"
-        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.apptracker.plist" 2>/dev/null || true
-        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.browser.plist" 2>/dev/null || true
+        for agent in screen apptracker browser usb clipboard shadowit; do
+            launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.$agent.plist" 2>/dev/null || true
+        done
         pkill -f "command_listener.py" 2>/dev/null || true
         cd "$INSTALL_DIR" && nohup "$(get_python)" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
         sleep 2
@@ -485,13 +610,16 @@ case "$1" in
         ;;
     stop)
         echo -e "${CYAN}Stopping CyVigil services...${NC}"
-        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.apptracker.plist" 2>/dev/null || true
-        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.browser.plist" 2>/dev/null || true
+        for agent in screen apptracker browser usb clipboard shadowit; do
+            launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.$agent.plist" 2>/dev/null || true
+        done
         pkill -f "screen_watcher.py" 2>/dev/null || true
         pkill -f "command_listener.py" 2>/dev/null || true
         pkill -f "app_tracker.py" 2>/dev/null || true
         pkill -f "browser_monitor.py" 2>/dev/null || true
+        pkill -f "usb_dlp.py" 2>/dev/null || true
+        pkill -f "clipboard_dlp.py" 2>/dev/null || true
+        pkill -f "shadow_it_detector.py" 2>/dev/null || true
         pkill -f "websockify" 2>/dev/null || true
         pkill -f "cloudflared.*tunnel" 2>/dev/null || true
         echo -e "${GREEN}✓ All services stopped${NC}"
@@ -506,7 +634,19 @@ case "$1" in
         echo -e "${CYAN}║       CyVigil Service Status             ║${NC}"
         echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
         echo ""
+        echo -e "${BOLD}Core Services:${NC}"
         for svc in "screen_watcher.py:Screen Watcher" "command_listener.py:Command Listener" "app_tracker.py:App Tracker" "browser_monitor.py:Browser Monitor"; do
+            proc="${svc%%:*}"
+            name="${svc#*:}"
+            if pgrep -f "$proc" > /dev/null; then
+                printf "  %-20s ${GREEN}● Running${NC}\n" "$name"
+            else
+                printf "  %-20s ${RED}○ Stopped${NC}\n" "$name"
+            fi
+        done
+        echo ""
+        echo -e "${BOLD}DLP Services:${NC}"
+        for svc in "usb_dlp.py:USB Monitor" "clipboard_dlp.py:Clipboard DLP" "shadow_it_detector.py:Shadow IT"; do
             proc="${svc%%:*}"
             name="${svc#*:}"
             if pgrep -f "$proc" > /dev/null; then
@@ -636,7 +776,7 @@ PEOF
         ;;
     *)
         echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}║       CyVigil CLI v2.1.0                 ║${NC}"
+        echo -e "${CYAN}║       CyVigil CLI v2.2.0                 ║${NC}"
         echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
         echo ""
         echo "Usage: loginmonitor <command>"
@@ -645,7 +785,7 @@ PEOF
         echo "  start        Start all monitoring services"
         echo "  stop         Stop all services"
         echo "  restart      Restart all services"
-        echo "  status       Show service status"
+        echo "  status       Show service status (incl. DLP)"
         echo "  logs         View live logs"
         echo ""
         echo -e "${BOLD}Setup:${NC}"
@@ -655,6 +795,10 @@ PEOF
         echo "  vnc          Setup remote desktop (VNC)"
         echo "  permissions  Check all permissions"
         echo ""
+        echo -e "${BOLD}DLP Features:${NC}"
+        echo "  USB monitoring, Clipboard DLP, Shadow IT detection"
+        echo "  Keystroke logging, OCR search, SIEM integration"
+        echo ""
         echo -e "${BOLD}Other:${NC}"
         echo "  test         Trigger test event"
         echo "  update       Update to latest version"
@@ -662,6 +806,7 @@ PEOF
         echo "  version      Show version"
         echo ""
         echo -e "Dashboard: ${CYAN}https://web-dashboard-inky.vercel.app${NC}"
+        echo -e "DLP Page:  ${CYAN}https://web-dashboard-inky.vercel.app/dlp${NC}"
         echo ""
         ;;
 esac
