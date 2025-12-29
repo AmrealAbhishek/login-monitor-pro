@@ -174,7 +174,7 @@ mkdir -p "$INSTALL_DIR"/{captures,events,audio,captured_images,captured_audio,ac
 mkdir -p "$LAUNCH_AGENTS_DIR"
 
 # Download Python files from GitHub
-PYTHON_FILES="screen_watcher.py pro_monitor.py command_listener.py supabase_client.py"
+PYTHON_FILES="screen_watcher.py pro_monitor.py command_listener.py supabase_client.py check_permissions.py request_location_permission.py app_tracker.py browser_monitor.py file_monitor.py suspicious_detector.py"
 for file in $PYTHON_FILES; do
     echo "  Downloading $file..."
     curl -fsSL "$GITHUB_RAW/$file" -o "$INSTALL_DIR/$file" || {
@@ -587,8 +587,8 @@ PEOF
     vnc)
         echo -e "${CYAN}Setting up Remote Desktop (VNC)...${NC}"
         echo ""
-        # Check if Screen Sharing is enabled
-        if lsof -i :5900 >/dev/null 2>&1; then
+        # Check if Screen Sharing is enabled (use netstat, lsof needs sudo)
+        if netstat -an | grep -q "\.5900"; then
             echo -e "${GREEN}✓ Screen Sharing is already enabled${NC}"
         else
             echo -e "${YELLOW}Screen Sharing is not enabled.${NC}"
@@ -600,19 +600,53 @@ PEOF
             echo "  1. Turn ON 'Screen Sharing'"
             echo "  2. Click 'Computer Settings...'"
             echo "  3. Check 'VNC viewers may control screen with password'"
-            echo "  4. Set a VNC password"
+            echo "  4. Set a VNC password (e.g., vnc123)"
             echo ""
             read -p "Press Enter after enabling Screen Sharing..." < /dev/tty
         fi
         # Check again
-        if lsof -i :5900 >/dev/null 2>&1; then
+        if netstat -an | grep -q "\.5900"; then
             echo -e "${GREEN}✓ Screen Sharing is enabled and ready${NC}"
             echo ""
             echo "You can now use Remote Desktop from the web dashboard:"
             echo -e "  ${CYAN}https://web-dashboard-inky.vercel.app/remote${NC}"
+            echo ""
+            echo -e "${YELLOW}VNC Login:${NC}"
+            echo "  Username: $(whoami)"
+            echo "  Password: Your Mac password OR VNC password you set"
         else
             echo -e "${RED}Screen Sharing is still not enabled.${NC}"
             echo "Please enable it manually in System Settings > Sharing"
+        fi
+        ;;
+    permissions|perms|check)
+        echo -e "${CYAN}Checking all permissions...${NC}"
+        echo ""
+        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
+        if [ -f "$INSTALL_DIR/check_permissions.py" ]; then
+            "$PYTHON_PATH" "$INSTALL_DIR/check_permissions.py"
+        else
+            # Inline check if script not available
+            echo "Checking permissions..."
+            echo ""
+            # Screen Sharing
+            if netstat -an | grep -q "\.5900"; then
+                echo -e "  ${GREEN}✓${NC} Screen Sharing (VNC): ${GREEN}Enabled${NC}"
+            else
+                echo -e "  ${RED}✗${NC} Screen Sharing (VNC): ${RED}Not Enabled${NC}"
+                echo -e "    ${YELLOW}→ Run: loginmonitor vnc${NC}"
+            fi
+            # Screen Recording (basic check)
+            echo -e "  ${YELLOW}?${NC} Screen Recording: Run 'loginmonitor screen' to verify"
+            # Location
+            echo -e "  ${YELLOW}?${NC} Location Services: Run 'loginmonitor location' to verify"
+            # Camera
+            if /opt/homebrew/bin/imagesnap -l 2>/dev/null | grep -q "Video"; then
+                echo -e "  ${GREEN}✓${NC} Camera: ${GREEN}Available${NC}"
+            else
+                echo -e "  ${YELLOW}?${NC} Camera: Will be requested on first use"
+            fi
+            echo ""
         fi
         ;;
     uninstall)
@@ -637,6 +671,7 @@ PEOF
         echo "  location   Setup location permission (for GPS)"
         echo "  screen     Setup screen recording permission"
         echo "  vnc        Setup Remote Desktop (Screen Sharing)"
+        echo "  permissions Check all permissions status"
         echo "  uninstall  Remove Login Monitor"
         echo "  version    Show version"
         echo ""
@@ -655,21 +690,8 @@ fi
 
 echo -e "${GREEN}✓ CLI command: loginmonitor${NC}"
 
-# Copy permission helper scripts
-if [ -f "$SCRIPT_DIR/request_location_permission.py" ]; then
-    cp "$SCRIPT_DIR/request_location_permission.py" "$INSTALL_DIR/" 2>/dev/null || true
-else
-    # Download from GitHub if running via curl
-    curl -fsSL "$GITHUB_RAW/request_location_permission.py" -o "$INSTALL_DIR/request_location_permission.py" 2>/dev/null || true
-fi
-
-if [ -f "$SCRIPT_DIR/request_screen_permission.py" ]; then
-    cp "$SCRIPT_DIR/request_screen_permission.py" "$INSTALL_DIR/" 2>/dev/null || true
-else
-    # Download from GitHub if running via curl
-    curl -fsSL "$GITHUB_RAW/request_screen_permission.py" -o "$INSTALL_DIR/request_screen_permission.py" 2>/dev/null || true
-fi
-chmod +x "$INSTALL_DIR"/*.py 2>/dev/null || true
+# Helper scripts are now downloaded with PYTHON_FILES
+echo -e "${GREEN}✓ Permission helper scripts installed${NC}"
 
 # Final summary
 echo ""
