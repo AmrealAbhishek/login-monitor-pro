@@ -145,9 +145,11 @@ class ClipboardDLPMonitor:
 
     def __init__(self):
         self.config = self._load_config()
-        self.device_id = self.config.get("device_id", "")
-        self.supabase_url = self.config.get("supabase_url", "")
-        self.supabase_key = self.config.get("supabase_key", "")
+        # Handle nested config structure
+        supabase_config = self.config.get("supabase", {})
+        self.device_id = supabase_config.get("device_id", self.config.get("device_id", ""))
+        self.supabase_url = supabase_config.get("url", self.config.get("supabase_url", ""))
+        self.supabase_key = supabase_config.get("anon_key", self.config.get("supabase_key", ""))
 
         self.last_content_hash = ""
         self.last_content = ""

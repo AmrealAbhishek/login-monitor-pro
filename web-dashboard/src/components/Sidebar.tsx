@@ -28,11 +28,13 @@ import {
   Moon,
   Circle,
   Package,
+  ShieldAlert,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/events', label: 'Activity', icon: Activity },
   { href: '/alerts', label: 'Alerts', icon: AlertTriangle },
+  { href: '/dlp', label: 'Data Protection', icon: ShieldAlert },
   { href: '/productivity', label: 'Productivity', icon: BarChart3 },
   { href: '/remote', label: 'Remote Desktop', icon: Monitor },
   { href: '/security', label: 'Security Rules', icon: Shield },
