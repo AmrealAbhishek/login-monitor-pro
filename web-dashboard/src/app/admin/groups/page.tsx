@@ -28,9 +28,8 @@ interface DeviceGroup {
 
 interface Device {
   id: string;
-  device_name: string | null;
   hostname: string;
-  os: string;
+  os_version: string;
   last_seen: string;
   group_ids?: string[];
 }
@@ -88,7 +87,7 @@ export default function DeviceGroupsPage() {
     // Fetch devices with their group memberships
     const { data: devicesData } = await supabase
       .from('devices')
-      .select('id, device_name, hostname, os, last_seen')
+      .select('id, hostname, os_version, last_seen')
       .order('hostname');
 
     if (devicesData) {
@@ -377,10 +376,10 @@ export default function DeviceGroupsPage() {
                       <div className={`w-3 h-3 rounded-full ${online ? 'bg-green-500' : 'bg-gray-300'}`} />
                       <div>
                         <p className="font-medium text-gray-900">
-                          {device.device_name || device.hostname}
+                          {device.hostname}
                         </p>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <span>{device.os}</span>
+                          <span>{device.os_version}</span>
                           {device.group_ids && device.group_ids.length > 0 && (
                             <>
                               <span>•</span>

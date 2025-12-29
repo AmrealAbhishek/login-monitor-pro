@@ -8,14 +8,34 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Types for our database tables
 export interface Device {
   id: string;
-  user_id: string;
-  device_name: string;
+  user_id: string | null;
+  device_code: string;
   hostname: string;
-  os: string;
+  os_version: string;
+  mac_address: string | null;
   last_seen: string;
-  is_online: boolean;
-  pairing_code?: string;
+  is_active: boolean;
+  fcm_token: string | null;
+  org_id: string | null;
   created_at: string;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  settings: Record<string, unknown>;
+  install_token: string;
+  created_at: string;
+}
+
+export interface OrgMember {
+  id: string;
+  org_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'manager' | 'member';
+  joined_at: string;
 }
 
 export interface Event {

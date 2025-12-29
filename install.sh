@@ -27,6 +27,43 @@ DEFAULT_SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 DEFAULT_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZGFuaXdubnd1aXl5Znlnc3hhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Njg0Njg2MSwiZXhwIjoyMDgyNDIyODYxfQ.TEcxmXe628_DJILYNOtFVXDMFDku4xL7v9IDCNkI0zo"
 # ============================================
 
+# Parse command line arguments
+ORG_ID=""
+INSTALL_TOKEN=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --org-id=*)
+            ORG_ID="${1#*=}"
+            shift
+            ;;
+        --token=*)
+            INSTALL_TOKEN="${1#*=}"
+            shift
+            ;;
+        --org-id)
+            ORG_ID="$2"
+            shift 2
+            ;;
+        --token)
+            INSTALL_TOKEN="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# If org_id and token provided, skip interactive mode
+if [[ -n "$ORG_ID" && -n "$INSTALL_TOKEN" ]]; then
+    ENTERPRISE_MODE=true
+    echo -e "${GREEN}Enterprise installation detected${NC}"
+    echo -e "  Organization ID: ${CYAN}$ORG_ID${NC}"
+else
+    ENTERPRISE_MODE=false
+fi
+
 # Paths
 INSTALL_DIR="$HOME/.login-monitor"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
@@ -140,31 +177,40 @@ chmod +x "$INSTALL_DIR"/*.py
 echo -e "${GREEN}✓ Files installed to $INSTALL_DIR${NC}"
 
 echo -e "${BLUE}[4/7]${NC} Supabase Configuration..."
-echo ""
-echo -e "${CYAN}Choose setup option:${NC}"
-echo ""
-echo "  1) ${GREEN}Default${NC} - Use Login Monitor PRO cloud (Recommended)"
-echo "  2) ${YELLOW}Custom${NC}  - Use your own Supabase project"
-echo ""
-read -p "Enter choice [1/2]: " SETUP_CHOICE < /dev/tty
 
-if [[ "$SETUP_CHOICE" == "2" ]]; then
-    echo ""
-    echo -e "${YELLOW}Enter your Supabase credentials:${NC}"
-    read -p "Supabase Project URL (https://xxx.supabase.co): " SUPABASE_URL < /dev/tty
-    read -p "Supabase Anon Key: " SUPABASE_KEY < /dev/tty
-    read -p "Supabase Service Role Key: " SERVICE_KEY < /dev/tty
-
-    if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" || -z "$SERVICE_KEY" ]]; then
-        echo -e "${RED}Error: Supabase URL, Anon Key, and Service Key are required!${NC}"
-        exit 1
-    fi
-else
-    # Use default credentials
+if [[ "$ENTERPRISE_MODE" == "true" ]]; then
+    # Enterprise mode - use default cloud with org
     SUPABASE_URL="$DEFAULT_SUPABASE_URL"
     SUPABASE_KEY="$DEFAULT_SUPABASE_KEY"
     SERVICE_KEY="$DEFAULT_SERVICE_KEY"
-    echo -e "${GREEN}✓ Using Login Monitor PRO cloud${NC}"
+    echo -e "${GREEN}✓ Using CyVigil Enterprise cloud${NC}"
+else
+    echo ""
+    echo -e "${CYAN}Choose setup option:${NC}"
+    echo ""
+    echo "  1) ${GREEN}Default${NC} - Use Login Monitor PRO cloud (Recommended)"
+    echo "  2) ${YELLOW}Custom${NC}  - Use your own Supabase project"
+    echo ""
+    read -p "Enter choice [1/2]: " SETUP_CHOICE < /dev/tty
+
+    if [[ "$SETUP_CHOICE" == "2" ]]; then
+        echo ""
+        echo -e "${YELLOW}Enter your Supabase credentials:${NC}"
+        read -p "Supabase Project URL (https://xxx.supabase.co): " SUPABASE_URL < /dev/tty
+        read -p "Supabase Anon Key: " SUPABASE_KEY < /dev/tty
+        read -p "Supabase Service Role Key: " SERVICE_KEY < /dev/tty
+
+        if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" || -z "$SERVICE_KEY" ]]; then
+            echo -e "${RED}Error: Supabase URL, Anon Key, and Service Key are required!${NC}"
+            exit 1
+        fi
+    else
+        # Use default credentials
+        SUPABASE_URL="$DEFAULT_SUPABASE_URL"
+        SUPABASE_KEY="$DEFAULT_SUPABASE_KEY"
+        SERVICE_KEY="$DEFAULT_SERVICE_KEY"
+        echo -e "${GREEN}✓ Using Login Monitor PRO cloud${NC}"
+    fi
 fi
 
 echo -e "${BLUE}[5/7]${NC} Generating pairing code..."
@@ -180,27 +226,53 @@ PAIRING_EXPIRY=$(($(date +%s) + 300))
 PAIRING_EXPIRY_ISO=$(date -u -r $PAIRING_EXPIRY +"%Y-%m-%dT%H:%M:%SZ")
 
 # Register device in Supabase
-curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
-    -H "apikey: ${SUPABASE_KEY}" \
-    -H "Authorization: Bearer ${SUPABASE_KEY}" \
-    -H "Content-Type: application/json" \
-    -H "Prefer: return=representation" \
-    -d "{
-        \"id\": \"${DEVICE_ID}\",
-        \"hostname\": \"${HOSTNAME}\",
-        \"os_version\": \"macOS ${OS_VERSION}\",
-        \"device_code\": \"${PAIRING_CODE}\",
-        \"is_active\": true
-    }" >/dev/null 2>&1 || true
+if [[ "$ENTERPRISE_MODE" == "true" && -n "$ORG_ID" ]]; then
+    # Enterprise mode - include org_id
+    curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
+        -H "apikey: ${SUPABASE_KEY}" \
+        -H "Authorization: Bearer ${SUPABASE_KEY}" \
+        -H "Content-Type: application/json" \
+        -H "Prefer: return=representation" \
+        -d "{
+            \"id\": \"${DEVICE_ID}\",
+            \"hostname\": \"${HOSTNAME}\",
+            \"os_version\": \"macOS ${OS_VERSION}\",
+            \"device_code\": \"${PAIRING_CODE}\",
+            \"org_id\": \"${ORG_ID}\",
+            \"is_active\": true
+        }" >/dev/null 2>&1 || true
+    echo -e "${GREEN}✓ Device registered to organization${NC}"
+else
+    curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
+        -H "apikey: ${SUPABASE_KEY}" \
+        -H "Authorization: Bearer ${SUPABASE_KEY}" \
+        -H "Content-Type: application/json" \
+        -H "Prefer: return=representation" \
+        -d "{
+            \"id\": \"${DEVICE_ID}\",
+            \"hostname\": \"${HOSTNAME}\",
+            \"os_version\": \"macOS ${OS_VERSION}\",
+            \"device_code\": \"${PAIRING_CODE}\",
+            \"is_active\": true
+        }" >/dev/null 2>&1 || true
+fi
 
 # Create config
+if [[ "$ENTERPRISE_MODE" == "true" && -n "$ORG_ID" ]]; then
+    ORG_CONFIG="\"org_id\": \"$ORG_ID\","
+else
+    ORG_CONFIG=""
+fi
+
 cat > "$INSTALL_DIR/config.json" << EOF
 {
   "supabase": {
     "url": "$SUPABASE_URL",
     "anon_key": "$SUPABASE_KEY",
     "service_key": "$SERVICE_KEY",
-    "device_id": "$DEVICE_ID"
+    "device_id": "$DEVICE_ID",
+    $ORG_CONFIG
+    "enterprise_mode": $ENTERPRISE_MODE
   },
   "pairing": {
     "code": "$PAIRING_CODE",

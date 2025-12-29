@@ -150,7 +150,7 @@ export default function DevicesPage() {
       const device = devices.find(d => d.id === deviceId);
       return {
         deviceId,
-        deviceName: device?.device_name || device?.hostname || 'Unknown',
+        deviceName: device?.hostname || 'Unknown',
         status: 'pending' as const,
       };
     });
@@ -397,9 +397,9 @@ export default function DevicesPage() {
                     <div className={`w-3 h-3 rounded-full ${isOnline(device) ? 'bg-green-500' : 'bg-gray-300'}`} />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">
-                        {device.device_name || device.hostname}
+                        {device.hostname}
                       </p>
-                      <p className="text-sm text-gray-500">{device.os}</p>
+                      <p className="text-sm text-gray-500">{device.os_version}</p>
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">
@@ -420,9 +420,9 @@ export default function DevicesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">
-                      {selectedDevice.device_name || selectedDevice.hostname}
+                      {selectedDevice.hostname}
                     </h2>
-                    <p className="text-gray-500">{selectedDevice.os}</p>
+                    <p className="text-gray-500">{selectedDevice.os_version}</p>
                   </div>
                   <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                     isOnline(selectedDevice)

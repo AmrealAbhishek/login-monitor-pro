@@ -306,8 +306,8 @@ export default function Dashboard() {
                 <div className="flex items-center gap-4">
                   <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`} />
                   <div>
-                    <p className="font-medium text-gray-900">{device.device_name || device.hostname}</p>
-                    <p className="text-sm text-gray-500">{device.os}</p>
+                    <p className="font-medium text-gray-900">{device.hostname}</p>
+                    <p className="text-sm text-gray-500">{device.os_version}</p>
                   </div>
                 </div>
                 <div className="text-right">
