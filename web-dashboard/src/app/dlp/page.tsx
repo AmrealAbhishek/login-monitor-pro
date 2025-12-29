@@ -123,15 +123,16 @@ export default function DLPPage() {
     shadowITHigh: 0,
     sensitiveFiles: 0
   });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 30000);
+    loadData(true);
+    const interval = setInterval(() => loadData(false), 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const { data: usb } = await supabase
         .from('usb_events')
@@ -186,6 +187,12 @@ export default function DLPPage() {
       console.error('Error loading DLP data:', error);
     }
     setLoading(false);
+    setRefreshing(false);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData(false);
   };
 
   const formatBytes = (bytes: number) => {
@@ -362,11 +369,12 @@ export default function DLPPage() {
             <p className="text-gray-500 dark:text-gray-400">Monitor and protect sensitive data</p>
           </div>
           <button
-            onClick={loadData}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg flex items-center gap-2 transition-colors"
           >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
