@@ -28,6 +28,12 @@ import {
   ChevronRight,
   Clock,
   Activity,
+  ExternalLink,
+  Signal,
+  Globe,
+  Image,
+  BatteryCharging,
+  Zap as ZapIcon,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -41,6 +47,237 @@ const COMMANDS = [
   { id: 'alarm', label: 'Alarm', icon: Volume2, description: 'Play alarm' },
   { id: 'findme', label: 'Find Mac', icon: Smartphone, description: 'Find device' },
 ];
+
+// Helper function to get WiFi signal strength indicator
+function getSignalStrength(rssi: string | number): { level: number; color: string; label: string } {
+  const rssiNum = typeof rssi === 'string' ? parseInt(rssi) : rssi;
+  if (rssiNum >= -50) return { level: 4, color: 'text-green-400', label: 'Excellent' };
+  if (rssiNum >= -60) return { level: 3, color: 'text-green-400', label: 'Good' };
+  if (rssiNum >= -70) return { level: 2, color: 'text-yellow-400', label: 'Fair' };
+  return { level: 1, color: 'text-red-400', label: 'Weak' };
+}
+
+// Component to render command results nicely
+function CommandResultDisplay({ command, result, resultUrl }: { command: string; result: Record<string, unknown>; resultUrl?: string }) {
+  if (!result || Object.keys(result).length === 0) {
+    if (resultUrl) {
+      return (
+        <a
+          href={resultUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-sm text-red-500 hover:text-red-400 transition-colors"
+        >
+          <Image className="w-4 h-4" />
+          View Captured Image
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      );
+    }
+    return null;
+  }
+
+  // WiFi result
+  if (command === 'wifi' && result.wifi) {
+    const wifi = result.wifi as Record<string, unknown>;
+    const signal = wifi.rssi ? getSignalStrength(wifi.rssi as string) : null;
+    return (
+      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222] space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
+              <Wifi className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-white">{wifi.ssid as string || 'Unknown'}</p>
+              <p className="text-xs text-[#666]">Connected Network</p>
+            </div>
+          </div>
+          {signal && (
+            <div className="text-right">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4].map((bar) => (
+                  <div
+                    key={bar}
+                    className={`w-1.5 rounded-full ${bar <= signal.level ? signal.color.replace('text-', 'bg-') : 'bg-[#333]'}`}
+                    style={{ height: `${8 + bar * 4}px` }}
+                  />
+                ))}
+              </div>
+              <p className={`text-xs mt-1 ${signal.color}`}>{signal.label}</p>
+            </div>
+          )}
+        </div>
+        {wifi.rssi !== undefined && wifi.rssi !== null && (
+          <div className="flex items-center gap-4 text-sm text-[#888]">
+            <span className="flex items-center gap-1.5">
+              <Signal className="w-3.5 h-3.5" />
+              {String(wifi.rssi)}
+            </span>
+            {wifi.bssid !== undefined && wifi.bssid !== null && (
+              <span className="font-mono text-xs text-[#555]">
+                {String(wifi.bssid)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Battery result
+  if (command === 'battery' && result.battery) {
+    const battery = result.battery as Record<string, unknown>;
+    const percentage = battery.percentage as number || 0;
+    const isCharging = battery.charging as boolean;
+    const isLow = percentage <= 20;
+    return (
+      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222]">
+        <div className="flex items-center gap-4">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLow ? 'bg-red-500/20' : 'bg-green-500/20'}`}>
+            {isCharging ? (
+              <BatteryCharging className={`w-5 h-5 ${isLow ? 'text-red-400' : 'text-green-400'}`} />
+            ) : (
+              <Battery className={`w-5 h-5 ${isLow ? 'text-red-400' : 'text-green-400'}`} />
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-white">{percentage}%</span>
+              {isCharging && (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <ZapIcon className="w-3 h-3" />
+                  Charging
+                </span>
+              )}
+            </div>
+            <div className="h-2.5 bg-[#222] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${isLow ? 'bg-red-500' : 'bg-green-500'}`}
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Location result
+  if (command === 'location' && result.location) {
+    const location = result.location as Record<string, unknown>;
+    const lat = location.latitude as number;
+    const lng = location.longitude as number;
+    const googleMapsUrl = location.google_maps as string || (lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null);
+    return (
+      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222] space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+            <MapPin className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            {location.city ? (
+              <>
+                <p className="font-semibold text-white">{location.city as string}, {location.country as string}</p>
+                <p className="text-xs text-[#666]">{location.region as string}</p>
+              </>
+            ) : lat && lng ? (
+              <>
+                <p className="font-semibold text-white">GPS Location</p>
+                <p className="text-xs text-[#666] font-mono">{lat.toFixed(6)}, {lng.toFixed(6)}</p>
+              </>
+            ) : (
+              <p className="text-[#666]">Location data available</p>
+            )}
+          </div>
+        </div>
+        {googleMapsUrl && (
+          <a
+            href={googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors text-sm font-medium"
+          >
+            <Globe className="w-4 h-4" />
+            View on Google Maps
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  // Screenshot/Photo result with URL
+  if ((command === 'screenshot' || command === 'photo') && resultUrl) {
+    return (
+      <div className="mt-3">
+        <a
+          href={resultUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block relative group"
+        >
+          <img
+            src={resultUrl}
+            alt={command === 'screenshot' ? 'Screenshot' : 'Photo'}
+            className="w-full max-w-xs rounded-xl border border-[#333] group-hover:border-red-500/50 transition-colors"
+          />
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+            <span className="text-white text-sm font-medium flex items-center gap-2">
+              <ExternalLink className="w-4 h-4" />
+              Open Full Size
+            </span>
+          </div>
+        </a>
+      </div>
+    );
+  }
+
+  // Success/Status result
+  if (result.success !== undefined) {
+    return (
+      <div className={`mt-3 p-3 rounded-xl border ${result.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+        <div className="flex items-center gap-2">
+          {result.success ? (
+            <CheckCircle className="w-4 h-4 text-green-400" />
+          ) : (
+            <XCircle className="w-4 h-4 text-red-400" />
+          )}
+          <span className={result.success ? 'text-green-400' : 'text-red-400'}>
+            {result.message as string || (result.success ? 'Command executed successfully' : 'Command failed')}
+          </span>
+        </div>
+        {result.error !== undefined && result.error !== null && (
+          <p className="text-xs text-red-400 mt-2">{String(result.error)}</p>
+        )}
+      </div>
+    );
+  }
+
+  // Status/Info result (generic)
+  if (result.status || result.info) {
+    const data = (result.status || result.info) as Record<string, unknown>;
+    return (
+      <div className="mt-3 p-4 bg-[#0D0D0D] rounded-xl border border-[#222]">
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          {Object.entries(data).map(([key, value]) => (
+            <div key={key} className="flex justify-between">
+              <span className="text-[#666] capitalize">{key.replace(/_/g, ' ')}</span>
+              <span className="text-white font-medium">{String(value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback: Show formatted JSON for unknown result types
+  return (
+    <div className="mt-3 p-3 bg-[#0D0D0D] rounded-lg text-xs font-mono text-[#888] overflow-auto max-h-40">
+      <pre>{JSON.stringify(result, null, 2)}</pre>
+    </div>
+  );
+}
 
 interface BulkCommandResult {
   deviceId: string;
@@ -69,8 +306,8 @@ export default function DevicesPage() {
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Offline section collapsed state
-  const [offlineCollapsed, setOfflineCollapsed] = useState(true);
+  // Device filter state (all, online, offline)
+  const [deviceFilter, setDeviceFilter] = useState<'all' | 'online' | 'offline'>('all');
 
   useEffect(() => {
     fetchDevices();
@@ -265,6 +502,13 @@ export default function DevicesPage() {
   const onlineDevices = devices.filter(isOnline);
   const offlineDevices = devices.filter(d => !isOnline(d));
 
+  // Filtered devices based on current filter
+  const filteredDevices = deviceFilter === 'all'
+    ? devices
+    : deviceFilter === 'online'
+      ? onlineDevices
+      : offlineDevices;
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
@@ -380,139 +624,128 @@ export default function DevicesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Device List */}
         <div className="neon-card overflow-hidden">
-          {/* Online Devices Section */}
-          <div className="p-4 border-b border-[#222] bg-gradient-to-r from-green-500/10 to-transparent">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-green-500 rounded-full pulse-online" />
-              <h2 className="font-semibold text-green-400">Online ({onlineDevices.length})</h2>
+          {/* Filter Tabs */}
+          <div className="p-3 border-b border-[#222] bg-[#0D0D0D]">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setDeviceFilter('all')}
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  deviceFilter === 'all'
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
+                    : 'text-[#888] hover:bg-[#1A1A1A] hover:text-white'
+                }`}
+              >
+                All ({devices.length})
+              </button>
+              <button
+                onClick={() => setDeviceFilter('online')}
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                  deviceFilter === 'online'
+                    ? 'bg-green-600 text-white shadow-lg shadow-green-500/20'
+                    : 'text-[#888] hover:bg-[#1A1A1A] hover:text-white'
+                }`}
+              >
+                <div className={`w-2 h-2 rounded-full ${deviceFilter === 'online' ? 'bg-white' : 'bg-green-500'} pulse-online`} />
+                Online ({onlineDevices.length})
+              </button>
+              <button
+                onClick={() => setDeviceFilter('offline')}
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  deviceFilter === 'offline'
+                    ? 'bg-[#444] text-white'
+                    : 'text-[#888] hover:bg-[#1A1A1A] hover:text-white'
+                }`}
+              >
+                Offline ({offlineDevices.length})
+              </button>
             </div>
           </div>
-          <div className="divide-y divide-[#222] max-h-[300px] overflow-auto">
-            {onlineDevices.length === 0 ? (
-              <div className="p-8 text-center">
-                <Monitor className="w-10 h-10 text-[#333] mx-auto mb-3" />
-                <p className="text-[#666]">No devices online</p>
+
+          {/* Device List */}
+          <div className="divide-y divide-[#1A1A1A] max-h-[500px] overflow-auto">
+            {filteredDevices.length === 0 ? (
+              <div className="p-12 text-center">
+                <Monitor className="w-12 h-12 text-[#333] mx-auto mb-3" />
+                <p className="text-[#666]">
+                  {deviceFilter === 'online'
+                    ? 'No devices online'
+                    : deviceFilter === 'offline'
+                      ? 'No offline devices'
+                      : 'No devices found'}
+                </p>
               </div>
             ) : (
-              onlineDevices.map((device) => (
-                <div
-                  key={device.id}
-                  className={`flex items-center transition-all duration-200 ${
-                    !bulkMode && selectedDevice?.id === device.id
-                      ? 'bg-red-500/10 border-l-2 border-red-500'
-                      : 'hover:bg-[#111]'
-                  }`}
-                >
-                  {bulkMode && (
-                    <button
-                      onClick={() => toggleDeviceSelection(device.id)}
-                      className="p-4 hover:bg-[#111]"
-                    >
-                      {selectedDeviceIds.has(device.id) ? (
-                        <CheckSquare className="w-5 h-5 text-red-500" />
-                      ) : (
-                        <Square className="w-5 h-5 text-[#444]" />
-                      )}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => !bulkMode && setSelectedDevice(device)}
-                    className="flex-1 p-4 text-left"
+              filteredDevices.map((device) => {
+                const online = isOnline(device);
+                return (
+                  <div
+                    key={device.id}
+                    className={`flex items-center transition-all duration-200 ${
+                      !bulkMode && selectedDevice?.id === device.id
+                        ? 'bg-red-500/10 border-l-2 border-red-500'
+                        : 'hover:bg-[#111]'
+                    } ${!online && deviceFilter === 'all' ? 'opacity-60 hover:opacity-100' : ''}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
-                        <Monitor className="w-5 h-5 text-green-400" />
+                    {bulkMode && (
+                      <button
+                        onClick={() => toggleDeviceSelection(device.id)}
+                        className="p-4 hover:bg-[#111]"
+                      >
+                        {selectedDeviceIds.has(device.id) ? (
+                          <CheckSquare className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <Square className="w-5 h-5 text-[#444]" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => !bulkMode && setSelectedDevice(device)}
+                      className="flex-1 p-4 text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          online ? 'bg-green-500/20' : 'bg-[#1A1A1A]'
+                        }`}>
+                          <Monitor className={`w-5 h-5 ${online ? 'text-green-400' : 'text-[#444]'}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium truncate ${online ? 'text-white' : 'text-[#888]'}`}>
+                            {device.hostname}
+                          </p>
+                          <p className="text-xs text-[#555]">{device.os_version}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {online ? (
+                            <span className="flex items-center gap-1.5 text-xs text-green-400">
+                              <Activity className="w-3 h-3" />
+                              Live
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[#555]">
+                              {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
+                            </span>
+                          )}
+                          {!online && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeviceToDelete(device);
+                                setShowDeleteConfirm(true);
+                              }}
+                              className="p-1.5 text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Remove device"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-white truncate">{device.hostname}</p>
-                        <p className="text-xs text-[#666]">{device.os_version}</p>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-green-400">
-                        <Activity className="w-3 h-3" />
-                        <span>Live</span>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              ))
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
-
-          {/* Offline Devices Section */}
-          {offlineDevices.length > 0 && (
-            <>
-              <button
-                onClick={() => setOfflineCollapsed(!offlineCollapsed)}
-                className="w-full p-4 border-t border-[#222] bg-[#0D0D0D] hover:bg-[#111] transition-colors flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-[#444] rounded-full" />
-                  <h2 className="font-semibold text-[#666]">Offline ({offlineDevices.length})</h2>
-                </div>
-                {offlineCollapsed ? (
-                  <ChevronRight className="w-5 h-5 text-[#444]" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-[#444]" />
-                )}
-              </button>
-              {!offlineCollapsed && (
-                <div className="divide-y divide-[#1A1A1A] max-h-[200px] overflow-auto bg-[#0A0A0A]">
-                  {offlineDevices.map((device) => (
-                    <div
-                      key={device.id}
-                      className={`flex items-center opacity-50 hover:opacity-100 transition-all duration-200 ${
-                        !bulkMode && selectedDevice?.id === device.id
-                          ? 'bg-red-500/10 border-l-2 border-red-500 opacity-100'
-                          : ''
-                      }`}
-                    >
-                      {bulkMode && (
-                        <button
-                          onClick={() => toggleDeviceSelection(device.id)}
-                          className="p-4 hover:bg-[#111]"
-                        >
-                          {selectedDeviceIds.has(device.id) ? (
-                            <CheckSquare className="w-5 h-5 text-red-500" />
-                          ) : (
-                            <Square className="w-5 h-5 text-[#333]" />
-                          )}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => !bulkMode && setSelectedDevice(device)}
-                        className="flex-1 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#1A1A1A] rounded-xl flex items-center justify-center">
-                            <Monitor className="w-5 h-5 text-[#444]" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-[#888] truncate">{device.hostname}</p>
-                            <p className="text-xs text-[#555]">{device.os_version}</p>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeviceToDelete(device);
-                              setShowDeleteConfirm(true);
-                            }}
-                            className="p-2 text-[#444] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Remove device"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-[#444] mt-2 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
-                        </p>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
         </div>
 
         {/* Device Details & Commands */}
@@ -642,21 +875,11 @@ export default function DevicesPage() {
                             {cmd.status}
                           </span>
                         </div>
-                        {cmd.result && Object.keys(cmd.result).length > 0 && (
-                          <div className="mt-3 p-3 bg-[#0D0D0D] rounded-lg text-xs font-mono text-[#888] overflow-auto">
-                            {JSON.stringify(cmd.result, null, 2)}
-                          </div>
-                        )}
-                        {cmd.result_url && (
-                          <a
-                            href={cmd.result_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 inline-block text-sm text-red-500 hover:text-red-400 transition-colors"
-                          >
-                            View Result →
-                          </a>
-                        )}
+                        <CommandResultDisplay
+                          command={cmd.command}
+                          result={cmd.result as Record<string, unknown>}
+                          resultUrl={cmd.result_url}
+                        />
                       </div>
                     ))
                   )}
