@@ -1451,6 +1451,196 @@ class CommandListener:
             return {"success": False, "error": str(e)}
 
     # =========================================================================
+    # REMOTE DESKTOP (VNC) COMMANDS
+    # =========================================================================
+
+    def cmd_vnc_start(self, args: dict) -> dict:
+        """Start VNC remote desktop with websocket proxy and tunnel.
+
+        Returns a URL that can be used with noVNC to connect.
+        """
+        try:
+            import signal
+
+            vnc_port = 5900
+            ws_port = args.get("ws_port", 6080)
+
+            # Check if Screen Sharing is enabled
+            result = subprocess.run(
+                ["lsof", "-i", f":{vnc_port}"],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                return {
+                    "success": False,
+                    "error": "Screen Sharing not enabled. Enable it in System Settings > General > Sharing > Screen Sharing"
+                }
+
+            log(f"[VNC] Starting remote desktop on ws_port {ws_port}")
+
+            # Kill any existing websockify/cloudflared processes
+            subprocess.run(["pkill", "-f", "websockify"], capture_output=True)
+            subprocess.run(["pkill", "-f", "cloudflared.*tunnel.*vnc"], capture_output=True)
+            time.sleep(1)
+
+            # Start websockify (WebSocket to VNC proxy)
+            websockify_path = Path.home() / "Library/Python/3.9/bin/websockify"
+            if not websockify_path.exists():
+                websockify_path = "websockify"  # Try PATH
+
+            ws_process = subprocess.Popen(
+                [str(websockify_path), str(ws_port), f"localhost:{vnc_port}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            log(f"[VNC] websockify started on port {ws_port} (PID: {ws_process.pid})")
+
+            time.sleep(2)
+
+            # Start cloudflared tunnel
+            tunnel_process = subprocess.Popen(
+                ["/opt/homebrew/bin/cloudflared", "tunnel", "--url", f"http://localhost:{ws_port}"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True
+            )
+
+            # Wait for tunnel URL
+            tunnel_url = None
+            start_time = time.time()
+            while time.time() - start_time < 30:
+                line = tunnel_process.stdout.readline()
+                if "trycloudflare.com" in line:
+                    # Extract URL
+                    import re
+                    match = re.search(r'https://[a-z0-9-]+\.trycloudflare\.com', line)
+                    if match:
+                        tunnel_url = match.group(0)
+                        log(f"[VNC] Tunnel URL: {tunnel_url}")
+                        break
+                if tunnel_process.poll() is not None:
+                    break
+
+            if not tunnel_url:
+                return {
+                    "success": False,
+                    "error": "Failed to create tunnel. Check cloudflared installation."
+                }
+
+            # Store process info for later cleanup
+            vnc_state = {
+                "ws_pid": ws_process.pid,
+                "tunnel_pid": tunnel_process.pid,
+                "tunnel_url": tunnel_url,
+                "ws_port": ws_port
+            }
+
+            # Save state to file
+            state_file = BASE_DIR / "vnc_state.json"
+            with open(state_file, "w") as f:
+                json.dump(vnc_state, f)
+
+            # Update device with VNC URL
+            if self.client and self.device_id:
+                try:
+                    self.client.client.table("devices").update({
+                        "vnc_url": tunnel_url
+                    }).eq("id", self.device_id).execute()
+                except:
+                    pass
+
+            return {
+                "success": True,
+                "vnc_url": tunnel_url,
+                "ws_port": ws_port,
+                "message": f"VNC ready at {tunnel_url}"
+            }
+
+        except Exception as e:
+            log(f"[VNC] Error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def cmd_vnc_stop(self, args: dict) -> dict:
+        """Stop VNC remote desktop session."""
+        try:
+            log("[VNC] Stopping remote desktop")
+
+            # Kill websockify
+            subprocess.run(["pkill", "-f", "websockify"], capture_output=True)
+
+            # Kill cloudflared tunnel
+            subprocess.run(["pkill", "-f", "cloudflared.*tunnel"], capture_output=True)
+
+            # Remove state file
+            state_file = BASE_DIR / "vnc_state.json"
+            if state_file.exists():
+                state_file.unlink()
+
+            # Clear VNC URL from device
+            if self.client and self.device_id:
+                try:
+                    self.client.client.table("devices").update({
+                        "vnc_url": None
+                    }).eq("id", self.device_id).execute()
+                except:
+                    pass
+
+            return {
+                "success": True,
+                "message": "VNC session stopped"
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_vnc_status(self, args: dict) -> dict:
+        """Get VNC session status."""
+        try:
+            state_file = BASE_DIR / "vnc_state.json"
+
+            if not state_file.exists():
+                return {
+                    "success": True,
+                    "active": False,
+                    "message": "No active VNC session"
+                }
+
+            with open(state_file) as f:
+                state = json.load(f)
+
+            # Check if processes are still running
+            ws_running = subprocess.run(
+                ["kill", "-0", str(state.get("ws_pid", 0))],
+                capture_output=True
+            ).returncode == 0
+
+            tunnel_running = subprocess.run(
+                ["kill", "-0", str(state.get("tunnel_pid", 0))],
+                capture_output=True
+            ).returncode == 0
+
+            if ws_running and tunnel_running:
+                return {
+                    "success": True,
+                    "active": True,
+                    "vnc_url": state.get("tunnel_url"),
+                    "ws_port": state.get("ws_port")
+                }
+            else:
+                # Clean up stale state
+                state_file.unlink()
+                return {
+                    "success": True,
+                    "active": False,
+                    "message": "VNC session expired"
+                }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # =========================================================================
     # MAIN LOOP
     # =========================================================================
 
@@ -1529,6 +1719,14 @@ class CommandListener:
             "restart": self.cmd_reboot,
             "shutdown": self.cmd_shutdown,
             "poweroff": self.cmd_shutdown,
+            # Remote desktop (VNC) commands
+            "vnc_start": self.cmd_vnc_start,
+            "vncstart": self.cmd_vnc_start,
+            "remote_desktop": self.cmd_vnc_start,
+            "vnc_stop": self.cmd_vnc_stop,
+            "vncstop": self.cmd_vnc_stop,
+            "vnc_status": self.cmd_vnc_status,
+            "vncstatus": self.cmd_vnc_status,
         }
 
         handler = handlers.get(cmd_name)

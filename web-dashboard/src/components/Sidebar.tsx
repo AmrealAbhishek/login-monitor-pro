@@ -34,6 +34,7 @@ const navItems = [
   { href: '/events', label: 'Activity', icon: Activity },
   { href: '/alerts', label: 'Alerts', icon: AlertTriangle },
   { href: '/productivity', label: 'Productivity', icon: BarChart3 },
+  { href: '/remote', label: 'Remote Desktop', icon: Monitor },
   { href: '/security', label: 'Security Rules', icon: Shield },
   { href: '/install', label: 'Install Agent', icon: Download },
 ];
