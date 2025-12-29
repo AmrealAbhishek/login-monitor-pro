@@ -72,6 +72,13 @@ try:
 except ImportError:
     HAS_FCM = False
 
+# Threat Detection
+try:
+    from threat_detector import ThreatDetector
+    HAS_THREAT_DETECTION = True
+except ImportError:
+    HAS_THREAT_DETECTION = False
+
 # Audio recording
 try:
     import pyaudio
@@ -1194,6 +1201,17 @@ class LoginMonitorPro:
                                 )
                         except Exception as fcm_err:
                             log(f"FCM notification error: {fcm_err}", "WARNING")
+
+                    # Run threat detection analysis
+                    if HAS_THREAT_DETECTION:
+                        try:
+                            detector = ThreatDetector(self.config)
+                            threats = detector.analyze_event(event_data)
+                            for threat in threats:
+                                log(f"Threat detected: {threat.get('title')} (Severity: {threat.get('severity')})")
+                                detector.execute_action(threat, event_data)
+                        except Exception as threat_err:
+                            log(f"Threat detection error: {threat_err}", "WARNING")
                 else:
                     log("Supabase event failed", "WARNING")
             except Exception as e:
@@ -1253,6 +1271,8 @@ def show_status():
     print(f"  Face Recognition: {'✓' if HAS_FACE_RECOGNITION else '✗'}")
     print(f"  Audio Recording:  {'✓' if HAS_AUDIO else '✗'}")
     print(f"  CoreLocation:     {'✓' if HAS_CORELOCATION else '✗'}")
+    print(f"  Threat Detection: {'✓' if HAS_THREAT_DETECTION else '✗'}")
+    print(f"  FCM Push:         {'✓' if HAS_FCM else '✗'}")
 
     # Recent events
     events = list(EVENTS_DIR.glob("*.json"))
