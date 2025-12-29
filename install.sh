@@ -1,15 +1,22 @@
 #!/bin/bash
 #
-# Login Monitor PRO - One-Line Installer
-# ========================================
-# Install: curl -fsSL https://your-domain.com/install.sh | bash
+# CyVigil - Enterprise Security Monitor
+# =====================================
+# One-Line Install: curl -fsSL https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/install.sh | bash
 #
-# Supabase + Flutter App
+# Features:
+# - Screen lock/unlock detection with photo capture
+# - Remote commands (screenshot, location, audio, lock, etc.)
+# - Productivity tracking (app usage, idle time)
+# - Browser activity monitoring
+# - File access monitoring
+# - Suspicious activity detection
+# - Remote Desktop (VNC) support
 #
 
 set -e
 
-VERSION="2.0.0"
+VERSION="2.1.0"
 
 # Colors
 RED='\033[0;31m'
@@ -17,67 +24,61 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 # ============================================
-# DEFAULT SUPABASE CREDENTIALS (Your Project)
+# DEFAULT SUPABASE CREDENTIALS
 # ============================================
 DEFAULT_SUPABASE_URL="https://uldaniwnnwuiyyfygsxa.supabase.co"
 DEFAULT_SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZGFuaXdubnd1aXl5Znlnc3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDY4NjEsImV4cCI6MjA4MjQyMjg2MX0._9OU-el7-1I7aS_VLLdhjjexOFQdg0TQ7LI3KI6a2a4"
 DEFAULT_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZGFuaXdubnd1aXl5Znlnc3hhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Njg0Njg2MSwiZXhwIjoyMDgyNDIyODYxfQ.TEcxmXe628_DJILYNOtFVXDMFDku4xL7v9IDCNkI0zo"
+DEFAULT_VNC_PASSWORD="vnc123"
 # ============================================
-
-# Parse command line arguments
-ORG_ID=""
-INSTALL_TOKEN=""
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --org-id=*)
-            ORG_ID="${1#*=}"
-            shift
-            ;;
-        --token=*)
-            INSTALL_TOKEN="${1#*=}"
-            shift
-            ;;
-        --org-id)
-            ORG_ID="$2"
-            shift 2
-            ;;
-        --token)
-            INSTALL_TOKEN="$2"
-            shift 2
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
-
-# If org_id and token provided, skip interactive mode
-if [[ -n "$ORG_ID" && -n "$INSTALL_TOKEN" ]]; then
-    ENTERPRISE_MODE=true
-    echo -e "${GREEN}Enterprise installation detected${NC}"
-    echo -e "  Organization ID: ${CYAN}$ORG_ID${NC}"
-else
-    ENTERPRISE_MODE=false
-fi
 
 # Paths
 INSTALL_DIR="$HOME/.login-monitor"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+CLI_PATH="$HOME/.local/bin/loginmonitor"
 GITHUB_RAW="https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main"
 
+# Parse command line arguments
+ORG_ID=""
+INSTALL_TOKEN=""
+SILENT_MODE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --org-id=*) ORG_ID="${1#*=}"; shift ;;
+        --token=*) INSTALL_TOKEN="${1#*=}"; shift ;;
+        --org-id) ORG_ID="$2"; shift 2 ;;
+        --token) INSTALL_TOKEN="$2"; shift 2 ;;
+        --silent) SILENT_MODE=true; shift ;;
+        *) shift ;;
+    esac
+done
+
+# Enterprise mode check
+if [[ -n "$ORG_ID" && -n "$INSTALL_TOKEN" ]]; then
+    ENTERPRISE_MODE=true
+else
+    ENTERPRISE_MODE=false
+fi
+
+# Banner
 echo -e "${CYAN}"
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                                                            ║"
-echo "║           LOGIN MONITOR PRO - INSTALLER v${VERSION}            ║"
-echo "║                                                            ║"
-echo "║   Anti-Theft & Security Monitoring for macOS               ║"
-echo "║   Supabase + Flutter Mobile App                            ║"
-echo "║                                                            ║"
-echo "╚════════════════════════════════════════════════════════════╝"
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║                                                              ║"
+echo "║      ██████╗██╗   ██╗██╗   ██╗██╗ ██████╗ ██╗██╗            ║"
+echo "║     ██╔════╝╚██╗ ██╔╝██║   ██║██║██╔════╝ ██║██║            ║"
+echo "║     ██║      ╚████╔╝ ██║   ██║██║██║  ███╗██║██║            ║"
+echo "║     ██║       ╚██╔╝  ╚██╗ ██╔╝██║██║   ██║██║██║            ║"
+echo "║     ╚██████╗   ██║    ╚████╔╝ ██║╚██████╔╝██║███████╗       ║"
+echo "║      ╚═════╝   ╚═╝     ╚═══╝  ╚═╝ ╚═════╝ ╚═╝╚══════╝       ║"
+echo "║                                                              ║"
+echo "║           Enterprise Security Monitor v${VERSION}               ║"
+echo "║                                                              ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
 # Check macOS
@@ -86,195 +87,145 @@ if [[ "$(uname)" != "Darwin" ]]; then
     exit 1
 fi
 
-echo -e "${BLUE}[1/7]${NC} Checking system requirements..."
+echo -e "${BLUE}[1/8]${NC} Checking system requirements..."
 
-# Check Homebrew
+# Check/Install Homebrew
 if ! command -v brew &> /dev/null; then
     echo -e "${YELLOW}Installing Homebrew...${NC}"
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     [[ -f "/opt/homebrew/bin/brew" ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
-echo -e "${GREEN}✓ Homebrew${NC}"
+echo -e "${GREEN}✓${NC} Homebrew"
 
 # Check Python
 if ! command -v python3 &> /dev/null; then
     brew install python3
 fi
-echo -e "${GREEN}✓ Python $(python3 --version | cut -d' ' -f2)${NC}"
+echo -e "${GREEN}✓${NC} Python $(python3 --version | cut -d' ' -f2)"
 
-echo -e "${BLUE}[2/7]${NC} Installing dependencies..."
+echo -e "${BLUE}[2/8]${NC} Installing dependencies..."
 
-# Install imagesnap
+# Install imagesnap (for camera)
 if ! command -v imagesnap &> /dev/null && ! [[ -f /opt/homebrew/bin/imagesnap ]]; then
-    brew install imagesnap
+    echo "  Installing imagesnap..."
+    brew install imagesnap 2>/dev/null || true
 fi
-echo -e "${GREEN}✓ imagesnap${NC}"
+echo -e "${GREEN}✓${NC} imagesnap (camera capture)"
 
-# Install cloudflared for VNC tunneling
+# Install cloudflared (for VNC tunneling)
 if ! command -v cloudflared &> /dev/null && ! [[ -f /opt/homebrew/bin/cloudflared ]]; then
-    echo "Installing cloudflared for Remote Desktop..."
+    echo "  Installing cloudflared..."
     brew install cloudflared 2>/dev/null || true
 fi
-if command -v cloudflared &> /dev/null || [[ -f /opt/homebrew/bin/cloudflared ]]; then
-    echo -e "${GREEN}✓ cloudflared (for Remote Desktop)${NC}"
-fi
+echo -e "${GREEN}✓${NC} cloudflared (VNC tunneling)"
 
-# Python path
-# Find the best Python to use - prefer SYSTEM Python for consistency
-# System Python is more likely to already have permissions granted
-# Priority: System Python > python.org Python > Homebrew Python
+# Find best Python
 PYTHON_CMD=""
-
-# First, try system Python (most likely to have existing permissions)
-if [ -f "/usr/bin/python3" ]; then
-    PYTHON_CMD="/usr/bin/python3"
-elif [ -f "/Library/Developer/CommandLineTools/usr/bin/python3" ]; then
-    PYTHON_CMD="/Library/Developer/CommandLineTools/usr/bin/python3"
-fi
-
-# Fallback to python.org Python
-if [ -z "$PYTHON_CMD" ]; then
-    for PY in /Library/Frameworks/Python.framework/Versions/3.*/bin/python3; do
-        if [ -x "$PY" ]; then
-            PYTHON_CMD="$PY"
-            break
-        fi
-    done
-fi
-
-# Fallback to Homebrew Python
-if [ -z "$PYTHON_CMD" ] && [ -x "/opt/homebrew/bin/python3" ]; then
-    PYTHON_CMD="/opt/homebrew/bin/python3"
-fi
-
-# Last resort
-if [ -z "$PYTHON_CMD" ]; then
-    PYTHON_CMD=$(which python3)
-fi
-
-echo -e "${CYAN}Using Python: $PYTHON_CMD${NC}"
-
-# Install Python packages for the selected Python
-echo "Installing Python packages..."
-$PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase websockify 2>/dev/null || true
-
-# Also install for other Python versions (in case user runs scripts manually)
-for PY in /Library/Frameworks/Python.framework/Versions/*/bin/python3 /usr/local/bin/python3 /opt/homebrew/bin/python3 /Library/Developer/CommandLineTools/usr/bin/python3; do
-    if [ -x "$PY" ] && [ "$PY" != "$PYTHON_CMD" ]; then
-        echo -e "${CYAN}Installing packages for $PY...${NC}"
-        $PY -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase 2>/dev/null || true
+for PY in "/Library/Developer/CommandLineTools/usr/bin/python3" "/usr/bin/python3" "/opt/homebrew/bin/python3"; do
+    if [ -x "$PY" ]; then
+        PYTHON_CMD="$PY"
+        break
     fi
 done
-echo -e "${GREEN}✓ Python packages${NC}"
+[ -z "$PYTHON_CMD" ] && PYTHON_CMD=$(which python3)
+echo -e "${CYAN}Using Python: $PYTHON_CMD${NC}"
 
-echo -e "${BLUE}[3/7]${NC} Downloading and installing files..."
+# Install Python packages
+echo "  Installing Python packages..."
+$PYTHON_CMD -m pip install --user --quiet pyobjc-framework-Quartz pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN pyobjc-framework-Cocoa supabase websockify watchdog 2>/dev/null || true
+echo -e "${GREEN}✓${NC} Python packages"
 
-# Create directories
-mkdir -p "$INSTALL_DIR"/{captures,events,audio,captured_images,captured_audio,activity_logs,known_faces}
+echo -e "${BLUE}[3/8]${NC} Creating directories..."
+
+mkdir -p "$INSTALL_DIR"/{captured_images,captured_audio,activity_logs,known_faces,events}
 mkdir -p "$LAUNCH_AGENTS_DIR"
+mkdir -p "$HOME/.local/bin"
+echo -e "${GREEN}✓${NC} Directories created"
 
-# Download Python files from GitHub
-PYTHON_FILES="screen_watcher.py pro_monitor.py command_listener.py supabase_client.py check_permissions.py request_location_permission.py app_tracker.py browser_monitor.py file_monitor.py suspicious_detector.py"
-for file in $PYTHON_FILES; do
+echo -e "${BLUE}[4/8]${NC} Downloading scripts..."
+
+# Core monitoring scripts
+PYTHON_FILES=(
+    "screen_watcher.py"
+    "pro_monitor.py"
+    "command_listener.py"
+    "supabase_client.py"
+    "app_tracker.py"
+    "browser_monitor.py"
+    "file_monitor.py"
+    "suspicious_detector.py"
+    "check_permissions.py"
+    "request_location_permission.py"
+)
+
+for file in "${PYTHON_FILES[@]}"; do
     echo "  Downloading $file..."
-    curl -fsSL "$GITHUB_RAW/$file" -o "$INSTALL_DIR/$file" || {
-        echo -e "${RED}Failed to download $file${NC}"
-        exit 1
+    curl -fsSL "$GITHUB_RAW/$file" -o "$INSTALL_DIR/$file" 2>/dev/null || {
+        echo -e "${YELLOW}Warning: Could not download $file${NC}"
     }
 done
-chmod +x "$INSTALL_DIR"/*.py
-echo -e "${GREEN}✓ Files installed to $INSTALL_DIR${NC}"
+chmod +x "$INSTALL_DIR"/*.py 2>/dev/null || true
+echo -e "${GREEN}✓${NC} Scripts installed to $INSTALL_DIR"
 
-echo -e "${BLUE}[4/7]${NC} Supabase Configuration..."
+echo -e "${BLUE}[5/8]${NC} Configuring Supabase..."
 
 if [[ "$ENTERPRISE_MODE" == "true" ]]; then
-    # Enterprise mode - use default cloud with org
     SUPABASE_URL="$DEFAULT_SUPABASE_URL"
     SUPABASE_KEY="$DEFAULT_SUPABASE_KEY"
     SERVICE_KEY="$DEFAULT_SERVICE_KEY"
-    echo -e "${GREEN}✓ Using CyVigil Enterprise cloud${NC}"
+    echo -e "${GREEN}✓${NC} Enterprise mode - Organization: $ORG_ID"
+elif [[ "$SILENT_MODE" == "true" ]]; then
+    SUPABASE_URL="$DEFAULT_SUPABASE_URL"
+    SUPABASE_KEY="$DEFAULT_SUPABASE_KEY"
+    SERVICE_KEY="$DEFAULT_SERVICE_KEY"
 else
     echo ""
-    echo -e "${CYAN}Choose setup option:${NC}"
+    echo -e "  ${CYAN}1)${NC} Use CyVigil Cloud ${GREEN}(Recommended)${NC}"
+    echo -e "  ${CYAN}2)${NC} Use custom Supabase project"
     echo ""
-    echo "  1) ${GREEN}Default${NC} - Use Login Monitor PRO cloud (Recommended)"
-    echo "  2) ${YELLOW}Custom${NC}  - Use your own Supabase project"
-    echo ""
-    read -p "Enter choice [1/2]: " SETUP_CHOICE < /dev/tty
+    read -p "  Choice [1/2]: " SETUP_CHOICE < /dev/tty
 
     if [[ "$SETUP_CHOICE" == "2" ]]; then
-        echo ""
-        echo -e "${YELLOW}Enter your Supabase credentials:${NC}"
-        read -p "Supabase Project URL (https://xxx.supabase.co): " SUPABASE_URL < /dev/tty
-        read -p "Supabase Anon Key: " SUPABASE_KEY < /dev/tty
-        read -p "Supabase Service Role Key: " SERVICE_KEY < /dev/tty
-
-        if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" || -z "$SERVICE_KEY" ]]; then
-            echo -e "${RED}Error: Supabase URL, Anon Key, and Service Key are required!${NC}"
-            exit 1
-        fi
+        read -p "  Supabase URL: " SUPABASE_URL < /dev/tty
+        read -p "  Anon Key: " SUPABASE_KEY < /dev/tty
+        read -p "  Service Key: " SERVICE_KEY < /dev/tty
     else
-        # Use default credentials
         SUPABASE_URL="$DEFAULT_SUPABASE_URL"
         SUPABASE_KEY="$DEFAULT_SUPABASE_KEY"
         SERVICE_KEY="$DEFAULT_SERVICE_KEY"
-        echo -e "${GREEN}✓ Using Login Monitor PRO cloud${NC}"
     fi
 fi
+echo -e "${GREEN}✓${NC} Supabase configured"
 
-echo -e "${BLUE}[5/7]${NC} Generating pairing code..."
-
-# Generate device ID
+# Generate device ID and pairing code
 DEVICE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
 HOSTNAME=$(hostname)
 OS_VERSION=$(sw_vers -productVersion)
-
-# Generate 6-digit pairing code (valid for 5 minutes)
 PAIRING_CODE=$(printf "%06d" $((RANDOM % 1000000)))
 PAIRING_EXPIRY=$(($(date +%s) + 300))
-PAIRING_EXPIRY_ISO=$(date -u -r $PAIRING_EXPIRY +"%Y-%m-%dT%H:%M:%SZ")
 
-# Register device in Supabase
-if [[ "$ENTERPRISE_MODE" == "true" && -n "$ORG_ID" ]]; then
-    # Enterprise mode - include org_id
-    curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
-        -H "apikey: ${SUPABASE_KEY}" \
-        -H "Authorization: Bearer ${SUPABASE_KEY}" \
-        -H "Content-Type: application/json" \
-        -H "Prefer: return=representation" \
-        -d "{
-            \"id\": \"${DEVICE_ID}\",
-            \"hostname\": \"${HOSTNAME}\",
-            \"os_version\": \"macOS ${OS_VERSION}\",
-            \"device_code\": \"${PAIRING_CODE}\",
-            \"org_id\": \"${ORG_ID}\",
-            \"is_active\": true
-        }" >/dev/null 2>&1 || true
-    echo -e "${GREEN}✓ Device registered to organization${NC}"
-else
-    curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
-        -H "apikey: ${SUPABASE_KEY}" \
-        -H "Authorization: Bearer ${SUPABASE_KEY}" \
-        -H "Content-Type: application/json" \
-        -H "Prefer: return=representation" \
-        -d "{
-            \"id\": \"${DEVICE_ID}\",
-            \"hostname\": \"${HOSTNAME}\",
-            \"os_version\": \"macOS ${OS_VERSION}\",
-            \"device_code\": \"${PAIRING_CODE}\",
-            \"is_active\": true
-        }" >/dev/null 2>&1 || true
-fi
+# Register device
+echo -e "${BLUE}[6/8]${NC} Registering device..."
 
-# Create config
-if [[ "$ENTERPRISE_MODE" == "true" && -n "$ORG_ID" ]]; then
-    ORG_CONFIG="\"org_id\": \"$ORG_ID\","
-else
-    ORG_CONFIG=""
-fi
+DEVICE_DATA="{\"id\":\"$DEVICE_ID\",\"hostname\":\"$HOSTNAME\",\"os_version\":\"macOS $OS_VERSION\",\"device_code\":\"$PAIRING_CODE\",\"is_active\":true"
+[[ "$ENTERPRISE_MODE" == "true" ]] && DEVICE_DATA="$DEVICE_DATA,\"org_id\":\"$ORG_ID\""
+DEVICE_DATA="$DEVICE_DATA}"
+
+curl -s -X POST "${SUPABASE_URL}/rest/v1/devices" \
+    -H "apikey: ${SUPABASE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=representation" \
+    -d "$DEVICE_DATA" >/dev/null 2>&1 || true
+echo -e "${GREEN}✓${NC} Device registered: $DEVICE_ID"
+
+# Create config file
+ORG_CONFIG=""
+[[ "$ENTERPRISE_MODE" == "true" ]] && ORG_CONFIG="\"org_id\": \"$ORG_ID\","
 
 cat > "$INSTALL_DIR/config.json" << EOF
 {
+  "version": "$VERSION",
   "supabase": {
     "url": "$SUPABASE_URL",
     "anon_key": "$SUPABASE_KEY",
@@ -287,25 +238,31 @@ cat > "$INSTALL_DIR/config.json" << EOF
     "code": "$PAIRING_CODE",
     "expires_at": $PAIRING_EXPIRY
   },
-  "features": {
-    "multi_photo": true,
-    "photo_count": 3,
-    "audio_recording": true,
-    "face_recognition": false
+  "vnc": {
+    "password": "$DEFAULT_VNC_PASSWORD",
+    "enabled": false
   },
-  "cooldown_seconds": 10,
-  "installed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "python_path": "$PYTHON_CMD"
+  "features": {
+    "screenshots": true,
+    "photos": true,
+    "audio": true,
+    "location": true,
+    "productivity": true,
+    "browser_monitoring": true,
+    "file_monitoring": true,
+    "threat_detection": true
+  },
+  "python_path": "$PYTHON_CMD",
+  "installed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 }
 EOF
 chmod 600 "$INSTALL_DIR/config.json"
 
-echo -e "${GREEN}✓ Configuration saved${NC}"
-echo "  Device ID: $DEVICE_ID"
+echo -e "${BLUE}[7/8]${NC} Setting up services..."
 
-echo -e "${BLUE}[6/7]${NC} Setting up services..."
-
-# Screen Watcher LaunchAgent (detects login/unlock events)
+# ========================================
+# LaunchAgent: Screen Watcher (login/unlock detection)
+# ========================================
 cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -334,8 +291,11 @@ cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" << EOF
 </dict>
 </plist>
 EOF
+echo -e "${GREEN}✓${NC} Screen Watcher"
 
-# Command Listener LaunchAgent (processes remote commands)
+# ========================================
+# LaunchAgent: Command Listener (remote commands)
+# ========================================
 cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -366,23 +326,93 @@ cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.commands.plist" << EOF
 </dict>
 </plist>
 EOF
+echo -e "${GREEN}✓${NC} Command Listener"
 
-# Create Command Listener App (for Screen Recording permission)
+# ========================================
+# LaunchAgent: App Tracker (productivity)
+# ========================================
+cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.apptracker.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.loginmonitor.apptracker</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$PYTHON_CMD</string>
+        <string>$INSTALL_DIR/app_tracker.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/loginmonitor-apptracker.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/loginmonitor-apptracker.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+echo -e "${GREEN}✓${NC} App Tracker (Productivity)"
+
+# ========================================
+# LaunchAgent: Browser Monitor
+# ========================================
+cat > "$LAUNCH_AGENTS_DIR/com.loginmonitor.browser.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.loginmonitor.browser</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$PYTHON_CMD</string>
+        <string>$INSTALL_DIR/browser_monitor.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/loginmonitor-browser.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/loginmonitor-browser.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+echo -e "${GREEN}✓${NC} Browser Monitor"
+
+# ========================================
+# Create LoginMonitorCommands.app (for Screen Recording permission)
+# ========================================
 APP_DIR="$INSTALL_DIR/LoginMonitorCommands.app"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
-# Create the launcher script (uses Python from config)
-cat > "$APP_DIR/Contents/MacOS/LoginMonitorCommands" << APPEOF
+cat > "$APP_DIR/Contents/MacOS/LoginMonitorCommands" << 'APPEOF'
 #!/bin/bash
 cd ~/.login-monitor
-# Read Python path from config or use default
-PYTHON_PATH=\$(python3 -c "import json; print(json.load(open('config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "$PYTHON_CMD")
-exec "\$PYTHON_PATH" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1
+PYTHON_PATH=$(python3 -c "import json; print(json.load(open('config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
+exec "$PYTHON_PATH" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1
 APPEOF
 chmod +x "$APP_DIR/Contents/MacOS/LoginMonitorCommands"
 
-# Create Info.plist for the app
 cat > "$APP_DIR/Contents/Info.plist" << 'PLISTEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -391,11 +421,11 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLISTEOF'
     <key>CFBundleExecutable</key>
     <string>LoginMonitorCommands</string>
     <key>CFBundleIdentifier</key>
-    <string>com.loginmonitor.commands</string>
+    <string>com.cyvigil.commands</string>
     <key>CFBundleName</key>
-    <string>LoginMonitorCommands</string>
+    <string>CyVigil Commands</string>
     <key>CFBundleVersion</key>
-    <string>2.0.0</string>
+    <string>2.1.0</string>
     <key>LSBackgroundOnly</key>
     <true/>
     <key>LSUIElement</key>
@@ -403,47 +433,30 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLISTEOF'
 </dict>
 </plist>
 PLISTEOF
+echo -e "${GREEN}✓${NC} CyVigil Commands App"
 
-# Try to add app to Login Items (may fail if Terminal doesn't have Automation permission)
-osascript << 'OSEOF' 2>/dev/null && LOGIN_ITEM_ADDED=true || LOGIN_ITEM_ADDED=false
-tell application "System Events"
-    try
-        delete login item "LoginMonitorCommands"
-    end try
-    make login item at end with properties {path:"~/.login-monitor/LoginMonitorCommands.app", hidden:true}
-end tell
-OSEOF
-
-if [ "$LOGIN_ITEM_ADDED" = "true" ]; then
-    echo -e "${GREEN}✓ Command Listener app added to Login Items${NC}"
-else
-    echo -e "${YELLOW}Note: Could not add to Login Items automatically (optional)${NC}"
-fi
-
-# Load screen_watcher LaunchAgent (doesn't need Screen Recording)
+# Load services
+echo "  Loading services..."
 launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
-echo -e "${GREEN}✓ Screen Watcher started (auto-starts on login)${NC}"
+launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.apptracker.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.loginmonitor.browser.plist" 2>/dev/null || true
 
-# Start command_listener from Terminal context (inherits Terminal's Screen Recording permission)
-# This is required for screenshots to work properly
+launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.screen.plist"
+launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.apptracker.plist"
+launchctl load "$LAUNCH_AGENTS_DIR/com.loginmonitor.browser.plist"
+
+# Start command_listener from Terminal (inherits Screen Recording permission)
 pkill -f "command_listener.py" 2>/dev/null || true
 cd "$INSTALL_DIR" && nohup "$PYTHON_CMD" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
-echo -e "${GREEN}✓ Command Listener started (with Screen Recording support)${NC}"
 
-# Note about Screen Recording
-echo ""
-echo -e "${CYAN}Screenshots will work automatically because command_listener was started from Terminal.${NC}"
-echo -e "${YELLOW}After reboot, run 'loginmonitor start' from Terminal to restore screenshot support.${NC}"
-echo ""
+echo -e "${GREEN}✓${NC} All services started"
 
-sleep 1
+echo -e "${BLUE}[8/8]${NC} Installing CLI..."
 
-echo -e "${BLUE}[7/7]${NC} Creating CLI command..."
-
-# Create CLI
-mkdir -p "$HOME/.local/bin"
-cat > "$HOME/.local/bin/loginmonitor" << 'CLIFEOF'
+# ========================================
+# CLI Script
+# ========================================
+cat > "$CLI_PATH" << 'CLIFEOF'
 #!/bin/bash
 INSTALL_DIR="$HOME/.login-monitor"
 LAUNCHAGENT_DIR="$HOME/Library/LaunchAgents"
@@ -452,27 +465,36 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'
+
+get_python() {
+    python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3"
+}
 
 case "$1" in
     start)
-        echo "Starting Login Monitor..."
-        # Start screen_watcher via LaunchAgent
+        echo -e "${CYAN}Starting CyVigil services...${NC}"
         launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
-        # Start command_listener from Terminal context (for Screen Recording support)
+        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.apptracker.plist" 2>/dev/null || true
+        launchctl load "$LAUNCHAGENT_DIR/com.loginmonitor.browser.plist" 2>/dev/null || true
         pkill -f "command_listener.py" 2>/dev/null || true
-        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
-        cd "$INSTALL_DIR" && nohup "$PYTHON_PATH" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
+        cd "$INSTALL_DIR" && nohup "$(get_python)" command_listener.py >> /tmp/loginmonitor-commands.log 2>&1 &
         sleep 2
-        echo -e "${GREEN}✓ Services started (screenshots enabled)${NC}"
         loginmonitor status
         ;;
     stop)
-        echo "Stopping Login Monitor..."
+        echo -e "${CYAN}Stopping CyVigil services...${NC}"
         launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.screen.plist" 2>/dev/null || true
+        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.apptracker.plist" 2>/dev/null || true
+        launchctl unload "$LAUNCHAGENT_DIR/com.loginmonitor.browser.plist" 2>/dev/null || true
         pkill -f "screen_watcher.py" 2>/dev/null || true
         pkill -f "command_listener.py" 2>/dev/null || true
-        echo -e "${GREEN}Stopped.${NC}"
+        pkill -f "app_tracker.py" 2>/dev/null || true
+        pkill -f "browser_monitor.py" 2>/dev/null || true
+        pkill -f "websockify" 2>/dev/null || true
+        pkill -f "cloudflared.*tunnel" 2>/dev/null || true
+        echo -e "${GREEN}✓ All services stopped${NC}"
         ;;
     restart)
         loginmonitor stop
@@ -480,206 +502,172 @@ case "$1" in
         loginmonitor start
         ;;
     status)
-        echo -e "${CYAN}Login Monitor PRO Status:${NC}"
+        echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║       CyVigil Service Status             ║${NC}"
+        echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
         echo ""
-        if pgrep -f "screen_watcher.py" > /dev/null; then
-            echo -e "  Screen Watcher:    ${GREEN}Running${NC}"
+        for svc in "screen_watcher.py:Screen Watcher" "command_listener.py:Command Listener" "app_tracker.py:App Tracker" "browser_monitor.py:Browser Monitor"; do
+            proc="${svc%%:*}"
+            name="${svc#*:}"
+            if pgrep -f "$proc" > /dev/null; then
+                printf "  %-20s ${GREEN}● Running${NC}\n" "$name"
+            else
+                printf "  %-20s ${RED}○ Stopped${NC}\n" "$name"
+            fi
+        done
+        echo ""
+        # VNC status
+        if netstat -an 2>/dev/null | grep -q "\.5900"; then
+            echo -e "  VNC (Screen Share)   ${GREEN}● Enabled${NC}"
         else
-            echo -e "  Screen Watcher:    ${RED}Stopped${NC}"
-        fi
-        if pgrep -f "command_listener.py" > /dev/null; then
-            echo -e "  Command Listener:  ${GREEN}Running${NC}"
-        else
-            echo -e "  Command Listener:  ${RED}Stopped${NC}"
+            echo -e "  VNC (Screen Share)   ${YELLOW}○ Not enabled${NC}"
         fi
         ;;
     logs)
-        echo "Press Ctrl+C to exit..."
-        tail -f /tmp/loginmonitor-screen.log /tmp/loginmonitor-commands.log 2>/dev/null
+        echo -e "${CYAN}Tailing all logs (Ctrl+C to exit)...${NC}"
+        tail -f /tmp/loginmonitor-*.log 2>/dev/null
         ;;
     pair)
-        # Generate new 6-digit pairing code
         CODE=$(printf "%06d" $((RANDOM % 1000000)))
         EXPIRY=$(($(date +%s) + 300))
-        EXPIRY_ISO=$(date -u -r $EXPIRY +"%Y-%m-%dT%H:%M:%SZ")
-
-        python3 << PEOF
-import json
-import os
-import urllib.request
-import urllib.error
-
+        $(get_python) << PEOF
+import json, os, urllib.request
 config_path = os.path.expanduser("~/.login-monitor/config.json")
 with open(config_path, 'r') as f:
     config = json.load(f)
-
-# Update pairing code
 config['pairing'] = {'code': '$CODE', 'expires_at': $EXPIRY}
-
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
-
-# Get Supabase credentials
-supabase_url = config['supabase']['url']
-supabase_key = config['supabase']['anon_key']
-device_id = config['supabase']['device_id']
-
-# Update device in Supabase
 try:
-    update_data = json.dumps({
-        'device_code': '$CODE'
-    }).encode('utf-8')
-
     req = urllib.request.Request(
-        f"{supabase_url}/rest/v1/devices?id=eq.{device_id}",
-        data=update_data,
+        f"{config['supabase']['url']}/rest/v1/devices?id=eq.{config['supabase']['device_id']}",
+        data=json.dumps({'device_code': '$CODE'}).encode(),
         method='PATCH'
     )
-    req.add_header('apikey', supabase_key)
-    req.add_header('Authorization', f'Bearer {supabase_key}')
+    req.add_header('apikey', config['supabase']['anon_key'])
+    req.add_header('Authorization', f"Bearer {config['supabase']['anon_key']}")
     req.add_header('Content-Type', 'application/json')
     urllib.request.urlopen(req)
-except Exception as e:
-    pass
-
-print("")
-print("\033[0;32m╔════════════════════════════════════════════════════╗\033[0m")
-print("\033[0;32m║                                                    ║\033[0m")
-print("\033[0;32m║   YOUR PAIRING CODE:  $CODE                    ║\033[0m")
-print("\033[0;32m║                                                    ║\033[0m")
-print("\033[0;32m║   Valid for: 5 minutes                             ║\033[0m")
-print("\033[0;32m║   Enter this code in the Flutter app               ║\033[0m")
-print("\033[0;32m║                                                    ║\033[0m")
-print("\033[0;32m╚════════════════════════════════════════════════════╝\033[0m")
-print("")
+except: pass
 PEOF
+        echo ""
+        echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║  PAIRING CODE:  ${YELLOW}${BOLD}$CODE${NC}${GREEN}                      ║${NC}"
+        echo -e "${GREEN}║  Valid for 5 minutes                       ║${NC}"
+        echo -e "${GREEN}╚════════════════════════════════════════════╝${NC}"
+        echo ""
         ;;
     test)
-        echo "Triggering test event..."
-        python3 "$INSTALL_DIR/pro_monitor.py" Test
+        echo -e "${CYAN}Triggering test event...${NC}"
+        $(get_python) "$INSTALL_DIR/pro_monitor.py" Test
         ;;
     location)
-        echo "Setting up location permission..."
-        # Use the same Python as command_listener
-        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
-        echo "Using Python: $PYTHON_PATH"
-        "$PYTHON_PATH" "$INSTALL_DIR/request_location_permission.py"
+        echo -e "${CYAN}Setting up location permission...${NC}"
+        $(get_python) "$INSTALL_DIR/request_location_permission.py"
         ;;
     screen)
-        echo -e "${CYAN}Setting up Screen Recording permission...${NC}"
+        echo -e "${CYAN}Screen Recording Setup${NC}"
         echo ""
-        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "/usr/bin/python3")
+        PYTHON_PATH=$(get_python)
         echo -e "${YELLOW}Add this Python to Screen Recording:${NC}"
-        echo ""
         echo -e "  ${GREEN}$PYTHON_PATH${NC}"
         echo ""
         echo "Steps:"
-        echo "  1. Click '+' in the Screen Recording window"
-        echo "  2. Press Cmd+Shift+G"
-        echo "  3. Paste the path above"
-        echo "  4. Click 'Open' and toggle ON"
+        echo "  1. System Settings → Privacy & Security → Screen Recording"
+        echo "  2. Click '+' → Press Cmd+Shift+G"
+        echo "  3. Paste the path above → Click Open"
+        echo "  4. Toggle ON"
         echo ""
-        echo "Opening Screen Recording settings..."
         open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
-        echo ""
-        echo -e "${YELLOW}After adding, restart with: loginmonitor restart${NC}"
+        echo -e "${YELLOW}After adding, run: loginmonitor restart${NC}"
         ;;
     vnc)
-        echo -e "${CYAN}Setting up Remote Desktop (VNC)...${NC}"
+        echo -e "${CYAN}Remote Desktop (VNC) Setup${NC}"
         echo ""
-        # Check if Screen Sharing is enabled (use netstat, lsof needs sudo)
-        if netstat -an | grep -q "\.5900"; then
-            echo -e "${GREEN}✓ Screen Sharing is already enabled${NC}"
+        if netstat -an 2>/dev/null | grep -q "\.5900"; then
+            echo -e "${GREEN}✓ Screen Sharing is enabled${NC}"
         else
-            echo -e "${YELLOW}Screen Sharing is not enabled.${NC}"
+            echo -e "${YELLOW}Screen Sharing is not enabled${NC}"
             echo ""
-            echo "Opening System Settings > Sharing..."
+            echo "Opening System Settings..."
             open "x-apple.systempreferences:com.apple.preferences.sharing?Services_ScreenSharing"
             echo ""
-            echo -e "${YELLOW}Please:${NC}"
+            echo -e "${YELLOW}Steps:${NC}"
             echo "  1. Turn ON 'Screen Sharing'"
             echo "  2. Click 'Computer Settings...'"
             echo "  3. Check 'VNC viewers may control screen with password'"
-            echo "  4. Set a VNC password (e.g., vnc123)"
+            echo "  4. Set password: vnc123 (or your choice)"
             echo ""
-            read -p "Press Enter after enabling Screen Sharing..." < /dev/tty
+            read -p "Press Enter after enabling..." < /dev/tty
         fi
-        # Check again
-        if netstat -an | grep -q "\.5900"; then
-            echo -e "${GREEN}✓ Screen Sharing is enabled and ready${NC}"
+        if netstat -an 2>/dev/null | grep -q "\.5900"; then
+            echo -e "${GREEN}✓ Screen Sharing ready${NC}"
             echo ""
-            echo "You can now use Remote Desktop from the web dashboard:"
-            echo -e "  ${CYAN}https://web-dashboard-inky.vercel.app/remote${NC}"
+            echo -e "Dashboard: ${CYAN}https://web-dashboard-inky.vercel.app/remote${NC}"
             echo ""
-            echo -e "${YELLOW}VNC Login:${NC}"
+            echo -e "${YELLOW}Login:${NC}"
             echo "  Username: $(whoami)"
-            echo "  Password: Your Mac password OR VNC password you set"
-        else
-            echo -e "${RED}Screen Sharing is still not enabled.${NC}"
-            echo "Please enable it manually in System Settings > Sharing"
+            echo "  Password: Mac password OR VNC password"
         fi
         ;;
     permissions|perms|check)
-        echo -e "${CYAN}Checking all permissions...${NC}"
-        echo ""
-        PYTHON_PATH=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('python_path', '/usr/bin/python3'))" 2>/dev/null || echo "python3")
         if [ -f "$INSTALL_DIR/check_permissions.py" ]; then
-            "$PYTHON_PATH" "$INSTALL_DIR/check_permissions.py"
+            $(get_python) "$INSTALL_DIR/check_permissions.py"
         else
-            # Inline check if script not available
-            echo "Checking permissions..."
+            echo -e "${CYAN}Permission Check${NC}"
             echo ""
-            # Screen Sharing
-            if netstat -an | grep -q "\.5900"; then
-                echo -e "  ${GREEN}✓${NC} Screen Sharing (VNC): ${GREEN}Enabled${NC}"
-            else
-                echo -e "  ${RED}✗${NC} Screen Sharing (VNC): ${RED}Not Enabled${NC}"
-                echo -e "    ${YELLOW}→ Run: loginmonitor vnc${NC}"
-            fi
-            # Screen Recording (basic check)
-            echo -e "  ${YELLOW}?${NC} Screen Recording: Run 'loginmonitor screen' to verify"
-            # Location
-            echo -e "  ${YELLOW}?${NC} Location Services: Run 'loginmonitor location' to verify"
-            # Camera
-            if /opt/homebrew/bin/imagesnap -l 2>/dev/null | grep -q "Video"; then
-                echo -e "  ${GREEN}✓${NC} Camera: ${GREEN}Available${NC}"
-            else
-                echo -e "  ${YELLOW}?${NC} Camera: Will be requested on first use"
-            fi
-            echo ""
+            netstat -an 2>/dev/null | grep -q "\.5900" && echo -e "  ${GREEN}✓${NC} VNC: Enabled" || echo -e "  ${RED}✗${NC} VNC: Run 'loginmonitor vnc'"
+            echo -e "  ${YELLOW}?${NC} Screen Recording: Run 'loginmonitor screen'"
+            echo -e "  ${YELLOW}?${NC} Location: Run 'loginmonitor location'"
         fi
         ;;
     uninstall)
-        bash "$INSTALL_DIR/../login-monitor/uninstall.sh" 2>/dev/null || bash /Users/*/tool/login-monitor/uninstall.sh 2>/dev/null || echo "Run: bash /path/to/uninstall.sh"
+        echo -e "${CYAN}Uninstalling CyVigil...${NC}"
+        curl -fsSL "https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/uninstall.sh" | bash
         ;;
-    version)
-        echo "Login Monitor PRO v2.0.0"
+    update)
+        echo -e "${CYAN}Updating CyVigil...${NC}"
+        loginmonitor stop
+        curl -fsSL "https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/install.sh" | bash --silent
+        ;;
+    version|-v|--version)
+        VERSION=$(python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('version', '2.1.0'))" 2>/dev/null || echo "2.1.0")
+        echo "CyVigil v$VERSION"
         ;;
     *)
-        echo -e "${CYAN}Login Monitor PRO CLI${NC}"
+        echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║       CyVigil CLI v2.1.0                 ║${NC}"
+        echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
         echo ""
         echo "Usage: loginmonitor <command>"
         echo ""
-        echo "Commands:"
-        echo "  start      Start monitoring services"
-        echo "  stop       Stop all services"
-        echo "  restart    Restart services"
-        echo "  status     Show service status"
-        echo "  logs       View live logs"
-        echo "  pair       Generate new 6-digit pairing code"
-        echo "  test       Trigger test event"
-        echo "  location   Setup location permission (for GPS)"
-        echo "  screen     Setup screen recording permission"
-        echo "  vnc        Setup Remote Desktop (Screen Sharing)"
-        echo "  permissions Check all permissions status"
-        echo "  uninstall  Remove Login Monitor"
-        echo "  version    Show version"
+        echo -e "${BOLD}Services:${NC}"
+        echo "  start        Start all monitoring services"
+        echo "  stop         Stop all services"
+        echo "  restart      Restart all services"
+        echo "  status       Show service status"
+        echo "  logs         View live logs"
+        echo ""
+        echo -e "${BOLD}Setup:${NC}"
+        echo "  pair         Generate new pairing code"
+        echo "  location     Setup GPS location permission"
+        echo "  screen       Setup screen recording permission"
+        echo "  vnc          Setup remote desktop (VNC)"
+        echo "  permissions  Check all permissions"
+        echo ""
+        echo -e "${BOLD}Other:${NC}"
+        echo "  test         Trigger test event"
+        echo "  update       Update to latest version"
+        echo "  uninstall    Remove CyVigil"
+        echo "  version      Show version"
+        echo ""
+        echo -e "Dashboard: ${CYAN}https://web-dashboard-inky.vercel.app${NC}"
         echo ""
         ;;
 esac
 CLIFEOF
 
-chmod +x "$HOME/.local/bin/loginmonitor"
+chmod +x "$CLI_PATH"
 
 # Add to PATH
 if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
@@ -688,69 +676,44 @@ if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-echo -e "${GREEN}✓ CLI command: loginmonitor${NC}"
+echo -e "${GREEN}✓${NC} CLI installed: loginmonitor"
 
-# Helper scripts are now downloaded with PYTHON_FILES
-echo -e "${GREEN}✓ Permission helper scripts installed${NC}"
-
-# Final summary
+# ========================================
+# Final Summary
+# ========================================
 echo ""
-echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║           INSTALLATION COMPLETE!                           ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║              INSTALLATION COMPLETE!                          ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${RED}║  REQUIRED: Run these commands NOW for full functionality   ║${NC}"
-echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║  IMPORTANT: Complete these steps for full functionality      ║${NC}"
+echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${YELLOW}1. GPS Location (REQUIRED for tracking):${NC}"
-echo -e "   ${GREEN}loginmonitor location${NC}"
-echo -e "   → Click 'Allow' when the popup appears"
+echo -e "${YELLOW}1. GPS Location:${NC}"
+echo -e "   ${GREEN}loginmonitor location${NC} → Click 'Allow' when prompted"
 echo ""
-echo -e "${YELLOW}2. Screenshots (REQUIRED for screen capture):${NC}"
-echo -e "   System Settings → Privacy & Security → Screen Recording"
-echo -e "   Click '+' → Press Cmd+Shift+G → Paste this path:"
-echo -e "   ${CYAN}$PYTHON_CMD${NC}"
-echo -e "   (or run ${GREEN}loginmonitor screen${NC} for guided setup)"
+echo -e "${YELLOW}2. Screenshots:${NC}"
+echo -e "   ${GREEN}loginmonitor screen${NC} → Follow the steps shown"
 echo ""
-echo -e "${YELLOW}3. Camera:${NC}"
-echo -e "   → Permission is requested automatically when needed"
+echo -e "${YELLOW}3. Remote Desktop (Optional):${NC}"
+echo -e "   ${GREEN}loginmonitor vnc${NC} → Enable Screen Sharing"
 echo ""
-echo -e "${YELLOW}4. Remote Desktop (OPTIONAL):${NC}"
-echo -e "   ${GREEN}loginmonitor vnc${NC}"
-echo -e "   → Enable Screen Sharing for remote control from dashboard"
+echo -e "${CYAN}Commands:${NC}"
+echo "  loginmonitor status      - Check service status"
+echo "  loginmonitor permissions - Check all permissions"
+echo "  loginmonitor logs        - View live logs"
 echo ""
-echo -e "${CYAN}Other CLI Commands:${NC}"
-echo "  loginmonitor status   - Check if running"
-echo "  loginmonitor pair     - Generate new pairing code"
-echo "  loginmonitor logs     - View logs"
-echo "  loginmonitor test     - Send test event"
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║                                                                ║${NC}"
+echo -e "${GREEN}║   PAIRING CODE:  ${YELLOW}${BOLD}$PAIRING_CODE${NC}${GREEN}                                    ║${NC}"
+echo -e "${GREEN}║                                                                ║${NC}"
+echo -e "${GREEN}║   Enter this code in the mobile app to connect                ║${NC}"
+echo -e "${GREEN}║   Code expires in 5 minutes                                   ║${NC}"
+echo -e "${GREEN}║                                                                ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-
-# Show pairing code with countdown
-echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║                                                            ║${NC}"
-echo -e "${GREEN}║   ${CYAN}YOUR PAIRING CODE:${NC}  ${YELLOW}$PAIRING_CODE${GREEN}                           ║${NC}"
-echo -e "${GREEN}║                                                            ║${NC}"
-echo -e "${GREEN}║   Open Flutter app → Enter this code to connect            ║${NC}"
-echo -e "${GREEN}║                                                            ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+echo -e "Dashboard: ${CYAN}https://web-dashboard-inky.vercel.app${NC}"
 echo ""
-
-# Countdown timer
-SKIP_COUNTDOWN=false
-trap 'SKIP_COUNTDOWN=true' INT
-while [ $(date +%s) -lt $PAIRING_EXPIRY ] && [ "$SKIP_COUNTDOWN" = "false" ]; do
-    REMAINING=$((PAIRING_EXPIRY - $(date +%s)))
-    MINS=$((REMAINING / 60))
-    SECS=$((REMAINING % 60))
-    printf "\r  ⏱  Code expires in: ${YELLOW}%02d:%02d${NC}  (Ctrl+C to exit)  " $MINS $SECS
-    sleep 1
-done
-trap - INT
+echo -e "${GREEN}CyVigil is now protecting your Mac!${NC}"
 echo ""
-if [ "$SKIP_COUNTDOWN" = "false" ]; then
-    echo -e "  ${RED}Code expired!${NC} Run '${CYAN}loginmonitor pair${NC}' for a new code"
-fi
-echo ""
-echo -e "${GREEN}Login Monitor PRO is now protecting your Mac!${NC}"
