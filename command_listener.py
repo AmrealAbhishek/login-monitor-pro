@@ -1266,28 +1266,37 @@ class CommandListener:
         # Process any pending commands first
         self.process_pending_commands()
 
-        # Start heartbeat in background thread
-        heartbeat_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
+        # Start heartbeat in background thread (NOT daemon - keeps running)
+        heartbeat_thread = threading.Thread(target=self.heartbeat_loop, daemon=False)
         heartbeat_thread.start()
         log("[HEARTBEAT] Background thread started")
 
-        # Try Realtime mode first
+        # Try Realtime mode first with auto-reconnect
         if REALTIME_AVAILABLE:
-            try:
-                asyncio.run(self.run_realtime())
-            except KeyboardInterrupt:
-                log("Command listener stopped by user")
-                self.running = False
-            except Exception as e:
-                log(f"[REALTIME] Failed: {e}")
-                log("[REALTIME] Falling back to polling mode...")
+            max_retries = 999999  # Essentially infinite retries
+            retry_count = 0
+            while self.running and retry_count < max_retries:
+                try:
+                    asyncio.run(self.run_realtime())
+                except KeyboardInterrupt:
+                    log("Command listener stopped by user")
+                    self.running = False
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    log(f"[REALTIME] Disconnected: {e}")
+                    log(f"[REALTIME] Reconnecting in 10 seconds... (attempt {retry_count})")
+                    time.sleep(10)
+
+            if self.running:
+                log("[REALTIME] Max retries reached, falling back to polling mode...")
                 self.run_polling()
         else:
             log("[INFO] Realtime not available, using polling mode")
             self.run_polling()
 
     async def run_realtime(self):
-        """Async Realtime listener"""
+        """Async Realtime listener with connection monitoring"""
         supabase_config = self.config.get("supabase", {})
 
         # Create async client
@@ -1299,8 +1308,12 @@ class CommandListener:
         # Subscribe to commands channel
         channel = realtime_client.channel('commands-channel')
 
+        # Track last activity for watchdog
+        self._last_realtime_activity = time.time()
+
         def handle_insert(payload):
             """Handle INSERT event"""
+            self._last_realtime_activity = time.time()
             self.on_realtime_command(payload)
 
         channel.on_postgres_changes(
@@ -1312,15 +1325,31 @@ class CommandListener:
         )
 
         await channel.subscribe()
+        self._last_realtime_activity = time.time()
 
         log("-" * 60)
         log("[REALTIME] Connected via WebSocket")
         log("[REALTIME] Commands execute INSTANTLY!")
         log("-" * 60)
 
-        # Keep alive
+        # Keep alive with watchdog - reconnect if no activity for 5 minutes
+        # (Supabase sends heartbeats, so no activity means disconnected)
+        WATCHDOG_TIMEOUT = 300  # 5 minutes
+
         while self.running:
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)  # Check every 30 seconds
+
+            # Update heartbeat via REST API (independent of WebSocket)
+            try:
+                self.client.update_device_status(self.device_id)
+            except Exception as e:
+                log(f"[REALTIME] Heartbeat error: {e}")
+
+            # Check if Realtime is still alive
+            time_since_activity = time.time() - self._last_realtime_activity
+            if time_since_activity > WATCHDOG_TIMEOUT:
+                log(f"[REALTIME] No activity for {int(time_since_activity)}s - forcing reconnect")
+                raise Exception("Watchdog timeout - Realtime appears disconnected")
 
     def run_polling(self):
         """Fallback polling mode"""
