@@ -165,6 +165,19 @@ PYTHON_FILES=(
     "siem_export.py"
 )
 
+# Download setup scripts
+SETUP_SCRIPTS=(
+    "setup_permissions.sh"
+)
+
+for file in "${SETUP_SCRIPTS[@]}"; do
+    echo "  Downloading $file..."
+    curl -fsSL "$GITHUB_RAW/$file" -o "$INSTALL_DIR/$file" 2>/dev/null || {
+        echo -e "${YELLOW}Warning: Could not download $file${NC}"
+    }
+done
+chmod +x "$INSTALL_DIR"/*.sh 2>/dev/null || true
+
 for file in "${PYTHON_FILES[@]}"; do
     echo "  Downloading $file..."
     curl -fsSL "$GITHUB_RAW/$file" -o "$INSTALL_DIR/$file" 2>/dev/null || {
@@ -750,16 +763,77 @@ PEOF
             echo "  Password: Mac password OR VNC password"
         fi
         ;;
-    permissions|perms|check)
-        if [ -f "$INSTALL_DIR/check_permissions.py" ]; then
-            $(get_python) "$INSTALL_DIR/check_permissions.py"
+    setup|setup-permissions)
+        echo -e "${CYAN}Running Permission Setup Wizard...${NC}"
+        if [ -f "$INSTALL_DIR/setup_permissions.sh" ]; then
+            bash "$INSTALL_DIR/setup_permissions.sh"
         else
-            echo -e "${CYAN}Permission Check${NC}"
-            echo ""
-            netstat -an 2>/dev/null | grep -q "\.5900" && echo -e "  ${GREEN}✓${NC} VNC: Enabled" || echo -e "  ${RED}✗${NC} VNC: Run 'loginmonitor vnc'"
-            echo -e "  ${YELLOW}?${NC} Screen Recording: Run 'loginmonitor screen'"
-            echo -e "  ${YELLOW}?${NC} Location: Run 'loginmonitor location'"
+            echo "Downloading setup script..."
+            curl -fsSL "https://raw.githubusercontent.com/AmrealAbhishek/login-monitor-pro/main/setup_permissions.sh" -o "$INSTALL_DIR/setup_permissions.sh"
+            chmod +x "$INSTALL_DIR/setup_permissions.sh"
+            bash "$INSTALL_DIR/setup_permissions.sh"
         fi
+        ;;
+    permissions|perms|check)
+        echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║       Permission Verification            ║${NC}"
+        echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
+        echo ""
+
+        # Full Disk Access
+        if sqlite3 "$HOME/Library/Safari/History.db" "SELECT 1 LIMIT 1" 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} Full Disk Access: Enabled"
+        else
+            echo -e "  ${RED}✗${NC} Full Disk Access: Not enabled"
+        fi
+
+        # Screen Recording
+        if screencapture -x /tmp/perm_test.png 2>/dev/null && [ -f /tmp/perm_test.png ]; then
+            SIZE=$(stat -f%z /tmp/perm_test.png 2>/dev/null || echo "0")
+            rm -f /tmp/perm_test.png
+            if [ "$SIZE" -gt 50000 ]; then
+                echo -e "  ${GREEN}✓${NC} Screen Recording: Enabled"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Screen Recording: Partial (wallpaper only)"
+            fi
+        else
+            echo -e "  ${RED}✗${NC} Screen Recording: Not enabled"
+        fi
+
+        # Automation (System Events)
+        if osascript -e 'tell application "System Events" to return name of first process' 2>/dev/null | grep -q "."; then
+            echo -e "  ${GREEN}✓${NC} Automation (System Events): Enabled"
+        else
+            echo -e "  ${RED}✗${NC} Automation (System Events): Not enabled"
+        fi
+
+        # Location
+        LOC_STATUS=$(python3 -c "import CoreLocation; print(CoreLocation.CLLocationManager.authorizationStatus())" 2>/dev/null || echo "0")
+        if [ "$LOC_STATUS" = "3" ] || [ "$LOC_STATUS" = "4" ]; then
+            echo -e "  ${GREEN}✓${NC} Location Services: Enabled"
+        elif [ "$LOC_STATUS" = "0" ]; then
+            echo -e "  ${YELLOW}⚠${NC} Location Services: Not determined"
+        else
+            echo -e "  ${RED}✗${NC} Location Services: Denied"
+        fi
+
+        # Camera
+        if [ -f /opt/homebrew/bin/imagesnap ]; then
+            if /opt/homebrew/bin/imagesnap -q /tmp/cam_test.jpg 2>/dev/null && [ -f /tmp/cam_test.jpg ]; then
+                echo -e "  ${GREEN}✓${NC} Camera: Enabled"
+                rm -f /tmp/cam_test.jpg
+            else
+                echo -e "  ${RED}✗${NC} Camera: Not enabled"
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} Camera: imagesnap not installed"
+        fi
+
+        # VNC
+        netstat -an 2>/dev/null | grep -q "\.5900" && echo -e "  ${GREEN}✓${NC} VNC: Enabled" || echo -e "  ${YELLOW}⚠${NC} VNC: Not enabled (optional)"
+
+        echo ""
+        echo -e "Run ${CYAN}loginmonitor setup${NC} to configure missing permissions."
         ;;
     uninstall)
         echo -e "${CYAN}Uninstalling CyVigil...${NC}"
@@ -789,11 +863,12 @@ PEOF
         echo "  logs         View live logs"
         echo ""
         echo -e "${BOLD}Setup:${NC}"
+        echo "  setup        Run permission setup wizard (recommended)"
+        echo "  permissions  Verify all permissions"
         echo "  pair         Generate new pairing code"
         echo "  location     Setup GPS location permission"
         echo "  screen       Setup screen recording permission"
         echo "  vnc          Setup remote desktop (VNC)"
-        echo "  permissions  Check all permissions"
         echo ""
         echo -e "${BOLD}DLP Features:${NC}"
         echo "  USB monitoring, Clipboard DLP, Shadow IT detection"
@@ -824,6 +899,67 @@ fi
 echo -e "${GREEN}✓${NC} CLI installed: loginmonitor"
 
 # ========================================
+# Permission Setup
+# ========================================
+echo ""
+echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║              PERMISSION SETUP REQUIRED                       ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "CyVigil needs several macOS permissions to work properly."
+echo -e "The setup wizard will now guide you through each permission."
+echo ""
+
+if [[ "$SILENT_MODE" != "true" ]]; then
+    echo -e "${YELLOW}Do you want to set up permissions now? (Recommended)${NC}"
+    echo -e "  ${GREEN}[Y]${NC} Yes - Open permission settings (takes ~2 minutes)"
+    echo -e "  ${RED}[N]${NC} No - Skip (run 'loginmonitor setup' later)"
+    echo ""
+    read -p "  Choice [Y/n]: " SETUP_PERMS < /dev/tty
+    SETUP_PERMS=${SETUP_PERMS:-Y}
+
+    if [[ "$SETUP_PERMS" =~ ^[Yy]$ ]]; then
+        echo ""
+        if [[ -f "$INSTALL_DIR/setup_permissions.sh" ]]; then
+            bash "$INSTALL_DIR/setup_permissions.sh"
+        else
+            # Fallback: Open all permission panes
+            echo -e "${CYAN}Opening permission settings...${NC}"
+            echo ""
+            echo -e "${BOLD}[1/6] Full Disk Access${NC} - Enable for $TERM_PROGRAM"
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+            read -p "Press ENTER when done..." < /dev/tty
+
+            echo -e "${BOLD}[2/6] Screen Recording${NC} - Enable for $TERM_PROGRAM"
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+            read -p "Press ENTER when done..." < /dev/tty
+
+            echo -e "${BOLD}[3/6] Automation${NC} - Enable Safari, Chrome, System Events"
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+            read -p "Press ENTER when done..." < /dev/tty
+
+            echo -e "${BOLD}[4/6] Accessibility${NC} - Enable for $TERM_PROGRAM"
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            read -p "Press ENTER when done..." < /dev/tty
+
+            echo -e "${BOLD}[5/6] Location Services${NC} - Enable for $TERM_PROGRAM"
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+            read -p "Press ENTER when done..." < /dev/tty
+
+            echo -e "${BOLD}[6/6] Camera & Microphone${NC} - Enable for $TERM_PROGRAM"
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"
+            sleep 2
+            open "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+            read -p "Press ENTER when done..." < /dev/tty
+        fi
+    else
+        echo ""
+        echo -e "${YELLOW}Skipped permission setup.${NC}"
+        echo -e "Run ${CYAN}loginmonitor setup${NC} anytime to set up permissions."
+    fi
+fi
+
+# ========================================
 # Final Summary
 # ========================================
 echo ""
@@ -831,22 +967,10 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║              INSTALLATION COMPLETE!                          ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${RED}║  IMPORTANT: Complete these steps for full functionality      ║${NC}"
-echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "${YELLOW}1. GPS Location:${NC}"
-echo -e "   ${GREEN}loginmonitor location${NC} → Click 'Allow' when prompted"
-echo ""
-echo -e "${YELLOW}2. Screenshots:${NC}"
-echo -e "   ${GREEN}loginmonitor screen${NC} → Follow the steps shown"
-echo ""
-echo -e "${YELLOW}3. Remote Desktop (Optional):${NC}"
-echo -e "   ${GREEN}loginmonitor vnc${NC} → Enable Screen Sharing"
-echo ""
 echo -e "${CYAN}Commands:${NC}"
 echo "  loginmonitor status      - Check service status"
-echo "  loginmonitor permissions - Check all permissions"
+echo "  loginmonitor setup       - Run permission setup wizard"
+echo "  loginmonitor permissions - Verify all permissions"
 echo "  loginmonitor logs        - View live logs"
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
@@ -859,6 +983,7 @@ echo -e "${GREEN}║                                                            
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "Dashboard: ${CYAN}https://web-dashboard-inky.vercel.app${NC}"
+echo -e "DLP Page:  ${CYAN}https://web-dashboard-inky.vercel.app/dlp${NC}"
 echo ""
 echo -e "${GREEN}CyVigil is now protecting your Mac!${NC}"
 echo ""
