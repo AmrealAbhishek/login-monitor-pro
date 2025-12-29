@@ -14,6 +14,55 @@ from pathlib import Path
 from typing import Optional, Dict, List
 
 SYNC_INTERVAL_SECONDS = 300  # Sync to Supabase every 5 minutes
+IDLE_THRESHOLD_SECONDS = 300  # 5 minutes = idle
+
+# App productivity categories (default mappings)
+PRODUCTIVE_APPS = {
+    "com.apple.dt.Xcode": "productive",
+    "com.microsoft.VSCode": "productive",
+    "com.visualstudio.code.oss": "productive",
+    "com.jetbrains.intellij": "productive",
+    "com.jetbrains.pycharm": "productive",
+    "com.apple.Terminal": "productive",
+    "com.googlecode.iterm2": "productive",
+    "com.figma.Desktop": "productive",
+    "com.sketch": "productive",
+    "com.adobe.Photoshop": "productive",
+    "com.adobe.Illustrator": "productive",
+    "com.microsoft.Excel": "productive",
+    "com.microsoft.Word": "productive",
+    "com.microsoft.Powerpoint": "productive",
+    "com.apple.Numbers": "productive",
+    "com.apple.Pages": "productive",
+    "com.apple.Keynote": "productive",
+    "notion.id": "productive",
+    "com.linear": "productive",
+    "com.github.GitHubClient": "productive",
+}
+
+UNPRODUCTIVE_APPS = {
+    "com.spotify.client": "unproductive",
+    "com.netflix.Netflix": "unproductive",
+    "tv.twitch.TwitchClient": "unproductive",
+    "com.google.youtube": "unproductive",
+    "com.facebook.Facebook": "unproductive",
+    "com.atebits.Tweetie2": "unproductive",  # Twitter
+    "com.instagram.Instagram": "unproductive",
+    "com.reddit.Reddit": "unproductive",
+    "com.tiktok.TikTok": "unproductive",
+    "com.valvesoftware.steam": "unproductive",
+    "com.apple.AppStore": "unproductive",
+}
+
+COMMUNICATION_APPS = {
+    "com.tinyspeck.slackmacgap": "communication",
+    "com.microsoft.teams": "communication",
+    "us.zoom.xos": "communication",
+    "com.google.GoogleDrive": "communication",
+    "com.apple.mail": "communication",
+    "com.microsoft.Outlook": "communication",
+    "com.apple.MobileSMS": "communication",
+}
 
 
 def get_base_dir() -> Path:
@@ -56,6 +105,346 @@ class AppSession:
             "terminated_at": self.terminated_at.isoformat() if self.terminated_at else None,
             "duration_seconds": self.duration_seconds
         }
+
+
+class IdleDetector:
+    """Detects system idle time using macOS IOKit"""
+
+    @staticmethod
+    def get_idle_time() -> int:
+        """Get system idle time in seconds using ioreg"""
+        try:
+            result = subprocess.run(
+                ["ioreg", "-c", "IOHIDSystem", "-d", "4"],
+                capture_output=True, text=True, timeout=5
+            )
+
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'HIDIdleTime' in line:
+                        # Extract nanoseconds value
+                        try:
+                            ns = int(line.split('=')[1].strip())
+                            return ns // 1_000_000_000  # Convert to seconds
+                        except (IndexError, ValueError):
+                            pass
+
+            return 0
+
+        except Exception as e:
+            log(f"Error getting idle time: {e}")
+            return 0
+
+    @staticmethod
+    def is_idle(threshold_seconds: int = IDLE_THRESHOLD_SECONDS) -> bool:
+        """Check if system is idle"""
+        return IdleDetector.get_idle_time() >= threshold_seconds
+
+
+class ProductivityTracker:
+    """Tracks and calculates productivity scores"""
+
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self._init_productivity_table()
+
+    def _init_productivity_table(self):
+        """Initialize productivity scores table"""
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS productivity_daily (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT UNIQUE NOT NULL,
+                    productive_seconds INTEGER DEFAULT 0,
+                    unproductive_seconds INTEGER DEFAULT 0,
+                    neutral_seconds INTEGER DEFAULT 0,
+                    communication_seconds INTEGER DEFAULT 0,
+                    idle_seconds INTEGER DEFAULT 0,
+                    total_active_seconds INTEGER DEFAULT 0,
+                    productivity_score REAL,
+                    login_count INTEGER DEFAULT 0,
+                    first_login TEXT,
+                    last_activity TEXT,
+                    top_apps TEXT,
+                    synced INTEGER DEFAULT 0
+                )
+            ''')
+
+            conn.commit()
+            conn.close()
+
+        except Exception as e:
+            log(f"Error creating productivity table: {e}")
+
+    def get_app_category(self, bundle_id: str) -> str:
+        """Get productivity category for an app"""
+        if not bundle_id:
+            return "neutral"
+
+        if bundle_id in PRODUCTIVE_APPS:
+            return "productive"
+        elif bundle_id in UNPRODUCTIVE_APPS:
+            return "unproductive"
+        elif bundle_id in COMMUNICATION_APPS:
+            return "communication"
+        else:
+            return "neutral"
+
+    def update_daily_stats(self, bundle_id: str, duration_seconds: int, is_idle: bool = False):
+        """Update daily productivity statistics"""
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            category = self.get_app_category(bundle_id) if not is_idle else "idle"
+
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            # Check if today's record exists
+            cursor.execute('SELECT id FROM productivity_daily WHERE date = ?', (today,))
+            row = cursor.fetchone()
+
+            if row:
+                # Update existing record
+                if category == "productive":
+                    cursor.execute('UPDATE productivity_daily SET productive_seconds = productive_seconds + ? WHERE date = ?',
+                                 (duration_seconds, today))
+                elif category == "unproductive":
+                    cursor.execute('UPDATE productivity_daily SET unproductive_seconds = unproductive_seconds + ? WHERE date = ?',
+                                 (duration_seconds, today))
+                elif category == "communication":
+                    cursor.execute('UPDATE productivity_daily SET communication_seconds = communication_seconds + ? WHERE date = ?',
+                                 (duration_seconds, today))
+                elif category == "idle":
+                    cursor.execute('UPDATE productivity_daily SET idle_seconds = idle_seconds + ? WHERE date = ?',
+                                 (duration_seconds, today))
+                else:
+                    cursor.execute('UPDATE productivity_daily SET neutral_seconds = neutral_seconds + ? WHERE date = ?',
+                                 (duration_seconds, today))
+
+                # Update total active time (non-idle)
+                if not is_idle:
+                    cursor.execute('UPDATE productivity_daily SET total_active_seconds = total_active_seconds + ? WHERE date = ?',
+                                 (duration_seconds, today))
+
+                # Update last activity
+                cursor.execute('UPDATE productivity_daily SET last_activity = ? WHERE date = ?',
+                             (datetime.now().isoformat(), today))
+
+            else:
+                # Create new record for today
+                cursor.execute('''
+                    INSERT INTO productivity_daily (date, productive_seconds, unproductive_seconds, neutral_seconds,
+                                                   communication_seconds, idle_seconds, total_active_seconds,
+                                                   first_login, last_activity)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    today,
+                    duration_seconds if category == "productive" else 0,
+                    duration_seconds if category == "unproductive" else 0,
+                    duration_seconds if category == "neutral" else 0,
+                    duration_seconds if category == "communication" else 0,
+                    duration_seconds if category == "idle" else 0,
+                    duration_seconds if not is_idle else 0,
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat()
+                ))
+
+            conn.commit()
+            conn.close()
+
+        except Exception as e:
+            log(f"Error updating daily stats: {e}")
+
+    def calculate_productivity_score(self, date: str = None) -> Dict:
+        """Calculate productivity score for a given date"""
+        try:
+            if not date:
+                date = datetime.now().strftime("%Y-%m-%d")
+
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT productive_seconds, unproductive_seconds, neutral_seconds,
+                       communication_seconds, idle_seconds, total_active_seconds,
+                       first_login, last_activity
+                FROM productivity_daily WHERE date = ?
+            ''', (date,))
+
+            row = cursor.fetchone()
+            conn.close()
+
+            if not row:
+                return {"date": date, "score": None, "message": "No data for this date"}
+
+            productive, unproductive, neutral, communication, idle, total_active, first_login, last_activity = row
+
+            # Calculate score: weighted average
+            # Productive: +1.0, Communication: +0.5, Neutral: 0, Unproductive: -1.0
+            if total_active == 0:
+                score = 0
+            else:
+                weighted = (productive * 1.0) + (communication * 0.5) + (neutral * 0) + (unproductive * -0.5)
+                # Normalize to 0-100 scale
+                max_possible = total_active * 1.0
+                min_possible = total_active * -0.5
+                if max_possible - min_possible == 0:
+                    score = 50
+                else:
+                    score = ((weighted - min_possible) / (max_possible - min_possible)) * 100
+
+            score = round(max(0, min(100, score)), 2)
+
+            # Update score in database
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute('UPDATE productivity_daily SET productivity_score = ? WHERE date = ?', (score, date))
+            conn.commit()
+            conn.close()
+
+            return {
+                "date": date,
+                "score": score,
+                "productive_seconds": productive,
+                "unproductive_seconds": unproductive,
+                "neutral_seconds": neutral,
+                "communication_seconds": communication,
+                "idle_seconds": idle,
+                "total_active_seconds": total_active,
+                "first_login": first_login,
+                "last_activity": last_activity,
+                "breakdown": {
+                    "productive": self._format_duration(productive),
+                    "unproductive": self._format_duration(unproductive),
+                    "neutral": self._format_duration(neutral),
+                    "communication": self._format_duration(communication),
+                    "idle": self._format_duration(idle),
+                    "total_active": self._format_duration(total_active)
+                }
+            }
+
+        except Exception as e:
+            log(f"Error calculating productivity score: {e}")
+            return {"error": str(e)}
+
+    def _format_duration(self, seconds: int) -> str:
+        """Format duration in human-readable format"""
+        if seconds < 60:
+            return f"{seconds}s"
+        elif seconds < 3600:
+            return f"{seconds // 60}m {seconds % 60}s"
+        else:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+
+    def get_weekly_summary(self) -> Dict:
+        """Get productivity summary for the last 7 days"""
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            since_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+            cursor.execute('''
+                SELECT date, productivity_score, productive_seconds, unproductive_seconds, total_active_seconds
+                FROM productivity_daily
+                WHERE date >= ?
+                ORDER BY date DESC
+            ''', (since_date,))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            days = []
+            total_score = 0
+            valid_days = 0
+
+            for row in rows:
+                date, score, productive, unproductive, total = row
+                days.append({
+                    "date": date,
+                    "score": score,
+                    "productive_hours": round(productive / 3600, 1) if productive else 0,
+                    "unproductive_hours": round(unproductive / 3600, 1) if unproductive else 0,
+                    "total_hours": round(total / 3600, 1) if total else 0
+                })
+                if score is not None:
+                    total_score += score
+                    valid_days += 1
+
+            avg_score = round(total_score / valid_days, 2) if valid_days > 0 else None
+
+            return {
+                "period": "last_7_days",
+                "average_score": avg_score,
+                "days": days,
+                "total_days_tracked": len(days),
+                "generated_at": datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            log(f"Error getting weekly summary: {e}")
+            return {"error": str(e)}
+
+    def sync_to_supabase(self, device_id: str, client):
+        """Sync productivity data to Supabase"""
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT date, productivity_score, productive_seconds, unproductive_seconds,
+                       neutral_seconds, idle_seconds, total_active_seconds, login_count,
+                       first_login, last_activity
+                FROM productivity_daily
+                WHERE synced = 0
+            ''')
+
+            rows = cursor.fetchall()
+
+            synced_dates = []
+            for row in rows:
+                date, score, productive, unproductive, neutral, idle, total, logins, first, last = row
+
+                try:
+                    # Upsert to productivity_scores table
+                    client._request(
+                        "POST",
+                        "/rest/v1/productivity_scores",
+                        {
+                            "device_id": device_id,
+                            "date": date,
+                            "productivity_score": score,
+                            "productive_seconds": productive,
+                            "unproductive_seconds": unproductive,
+                            "neutral_seconds": neutral,
+                            "idle_seconds": idle,
+                            "total_active_seconds": total,
+                            "login_count": logins,
+                            "first_login": first,
+                            "last_activity": last
+                        },
+                        use_service_key=True,
+                        headers={"Prefer": "resolution=merge-duplicates"}
+                    )
+                    synced_dates.append(date)
+                except Exception as e:
+                    log(f"Error syncing date {date}: {e}")
+
+            if synced_dates:
+                placeholders = ",".join("?" * len(synced_dates))
+                cursor.execute(f'UPDATE productivity_daily SET synced = 1 WHERE date IN ({placeholders})', synced_dates)
+                conn.commit()
+                log(f"Synced {len(synced_dates)} days of productivity data")
+
+            conn.close()
+
+        except Exception as e:
+            log(f"Error in productivity sync: {e}")
 
 
 class AppTracker:

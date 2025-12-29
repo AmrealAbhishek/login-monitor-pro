@@ -817,6 +817,69 @@ class CommandListener:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def cmd_productivity(self, args: dict) -> dict:
+        """Get productivity score and breakdown"""
+        try:
+            from app_tracker import ProductivityTracker, IdleDetector
+            from pathlib import Path
+
+            db_path = Path.home() / ".login-monitor" / "app_usage.db"
+            tracker = ProductivityTracker(db_path)
+
+            date = args.get("date")  # Optional: specific date (YYYY-MM-DD)
+            period = args.get("period", "today")  # today, weekly
+
+            if period == "weekly":
+                summary = tracker.get_weekly_summary()
+                return {
+                    "success": True,
+                    "productivity": summary
+                }
+            else:
+                # Today's score
+                score_data = tracker.calculate_productivity_score(date)
+
+                # Add current idle status
+                idle_seconds = IdleDetector.get_idle_time()
+                score_data["current_idle_seconds"] = idle_seconds
+                score_data["is_currently_idle"] = idle_seconds >= 300
+
+                return {
+                    "success": True,
+                    "productivity": score_data
+                }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cmd_idle(self, args: dict) -> dict:
+        """Get current idle time"""
+        try:
+            from app_tracker import IdleDetector
+
+            idle_seconds = IdleDetector.get_idle_time()
+
+            return {
+                "success": True,
+                "idle_seconds": idle_seconds,
+                "idle_formatted": self._format_duration(idle_seconds),
+                "is_idle": idle_seconds >= 300  # 5 minutes threshold
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _format_duration(self, seconds: int) -> str:
+        """Format duration in human-readable format"""
+        if seconds < 60:
+            return f"{seconds}s"
+        elif seconds < 3600:
+            return f"{seconds // 60}m {seconds % 60}s"
+        else:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+
     def cmd_listreports(self, args: dict) -> dict:
         """List all generated reports"""
         try:
@@ -1095,6 +1158,9 @@ class CommandListener:
             "appusage": self.cmd_appusage,
             "listreports": self.cmd_listreports,
             "listbackups": self.cmd_listbackups,
+            # Productivity commands
+            "productivity": self.cmd_productivity,
+            "idle": self.cmd_idle,
             # Data protection commands
             "lock_with_message": self.cmd_lock_with_message,
             "lockwithmessage": self.cmd_lock_with_message,  # Alternative without underscore
