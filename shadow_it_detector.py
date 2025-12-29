@@ -391,6 +391,7 @@ class ShadowITDetector:
         """Get list of running applications."""
         apps = []
 
+        # Try AppleScript first
         try:
             script = '''
             tell application "System Events"
@@ -402,12 +403,30 @@ class ShadowITDetector:
                 ['osascript', '-e', script],
                 capture_output=True, text=True, timeout=5
             )
-            if result.returncode == 0:
+            if result.returncode == 0 and result.stdout.strip():
                 apps = [app.strip() for app in result.stdout.split(',')]
+                return apps
         except Exception:
             pass
 
-        return apps
+        # Fallback: Use ps command (no permission needed)
+        try:
+            result = subprocess.run(
+                ['ps', '-eo', 'comm'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    app = line.strip()
+                    if app and not app.startswith('COMM'):
+                        # Extract app name from path
+                        app_name = app.split('/')[-1]
+                        if app_name:
+                            apps.append(app_name)
+        except Exception:
+            pass
+
+        return list(set(apps))  # Remove duplicates
 
     def get_active_network_connections(self) -> List[Dict]:
         """Get active network connections to detect VPN/tunnel usage."""
@@ -432,6 +451,115 @@ class ShadowITDetector:
             pass
 
         return connections
+
+    def detect_shadow_it_via_network(self) -> List[Dict]:
+        """Detect Shadow IT by checking network connections (no AppleScript needed)."""
+        detections = []
+
+        # Known Shadow IT domains to check
+        shadow_domains = []
+        for category, rules in SHADOW_IT_RULES.items():
+            for url in rules['urls']:
+                shadow_domains.append((url, category, rules['risk_level']))
+
+        try:
+            # Use lsof to get network connections with hostnames
+            result = subprocess.run(
+                ['lsof', '-i', '-n', '-P'],
+                capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode == 0:
+                connections = result.stdout.lower()
+
+                for domain, category, risk_level in shadow_domains:
+                    domain_lower = domain.lower().replace('.', '')
+                    # Check if domain appears in connections (IP or process name)
+                    if domain_lower in connections or domain.lower() in connections:
+                        detections.append({
+                            'app_name': domain,
+                            'app_category': category,
+                            'url_accessed': f'https://{domain}',
+                            'risk_level': risk_level,
+                            'matched_rule': domain,
+                            'detection_method': 'network'
+                        })
+        except Exception:
+            pass
+
+        # Also check DNS cache for recently accessed domains
+        try:
+            result = subprocess.run(
+                ['dscacheutil', '-cachedump', '-entries'],
+                capture_output=True, text=True, timeout=5
+            )
+            # Note: This may not work on all macOS versions
+        except Exception:
+            pass
+
+        # Check browser history files (SQLite) - works without permissions
+        try:
+            import sqlite3
+
+            # Safari history
+            safari_history = Path.home() / "Library/Safari/History.db"
+            if safari_history.exists():
+                conn = sqlite3.connect(f"file:{safari_history}?mode=ro", uri=True)
+                cursor = conn.cursor()
+                # Get URLs from last hour
+                cursor.execute("""
+                    SELECT url FROM history_items
+                    WHERE visit_time > (strftime('%s', 'now') - 3600)
+                """)
+                for row in cursor.fetchall():
+                    url = row[0].lower() if row[0] else ""
+                    for domain, category, risk_level in shadow_domains:
+                        if domain.lower() in url:
+                            if not any(d['matched_rule'] == domain for d in detections):
+                                detections.append({
+                                    'app_name': domain.split('.')[0].title(),
+                                    'app_category': category,
+                                    'url_accessed': row[0],
+                                    'risk_level': risk_level,
+                                    'matched_rule': domain,
+                                    'detection_method': 'browser_history'
+                                })
+                conn.close()
+
+            # Chrome history
+            chrome_history = Path.home() / "Library/Application Support/Google/Chrome/Default/History"
+            if chrome_history.exists():
+                # Chrome locks the file, so copy it first
+                import shutil
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                    shutil.copy2(chrome_history, tmp.name)
+                    conn = sqlite3.connect(tmp.name)
+                    cursor = conn.cursor()
+                    # Get URLs from last hour
+                    cursor.execute("""
+                        SELECT url FROM urls
+                        WHERE last_visit_time > (strftime('%s', 'now') - 3600) * 1000000 + 11644473600000000
+                    """)
+                    for row in cursor.fetchall():
+                        url = row[0].lower() if row[0] else ""
+                        for domain, category, risk_level in shadow_domains:
+                            if domain.lower() in url:
+                                if not any(d['matched_rule'] == domain for d in detections):
+                                    detections.append({
+                                        'app_name': domain.split('.')[0].title(),
+                                        'app_category': category,
+                                        'url_accessed': row[0],
+                                        'risk_level': risk_level,
+                                        'matched_rule': domain,
+                                        'detection_method': 'browser_history'
+                                    })
+                    conn.close()
+                    Path(tmp.name).unlink()
+        except Exception as e:
+            log(f"Browser history check error: {e}")
+
+        return detections
 
     def detect_shadow_it_url(self, url: str, title: str, browser: str) -> Optional[Dict]:
         """Check if URL matches Shadow IT rules."""
@@ -490,7 +618,7 @@ class ShadowITDetector:
         """Perform a full Shadow IT scan."""
         detections = []
 
-        # Scan browser URLs
+        # Scan browser URLs (AppleScript method)
         urls = self.get_browser_urls()
         for browser, title, url in urls:
             detection = self.detect_shadow_it_url(url, title, browser)
@@ -507,6 +635,25 @@ class ShadowITDetector:
                             detection['risk_level'],
                             f"Shadow IT Detected: {detection['app_name']}",
                             f"Unauthorized {detection['app_category']} usage detected: {detection['app_name']}. "
+                            f"URL: {detection.get('url_accessed', 'N/A')}. "
+                            f"This may violate security policies."
+                        )
+
+        # Fallback: Network/History-based detection (no AppleScript needed)
+        if not urls:
+            network_detections = self.detect_shadow_it_via_network()
+            for detection in network_detections:
+                key = f"network:{detection['matched_rule']}"
+                if self._should_alert(key):
+                    detections.append(detection)
+                    self.log_detection(detection)
+
+                    if detection['risk_level'] in ('high', 'critical') and self.alert_on_high_risk:
+                        self._create_security_alert(
+                            f"shadow_it_{detection['app_category']}",
+                            detection['risk_level'],
+                            f"Shadow IT Detected: {detection['app_name']}",
+                            f"Unauthorized {detection['app_category']} usage detected via {detection.get('detection_method', 'network')}. "
                             f"URL: {detection.get('url_accessed', 'N/A')}. "
                             f"This may violate security policies."
                         )
