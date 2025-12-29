@@ -24,6 +24,8 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -65,8 +67,15 @@ export default function DevicesPage() {
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Offline section collapsed state
+  const [offlineCollapsed, setOfflineCollapsed] = useState(true);
+
   useEffect(() => {
     fetchDevices();
+
+    // Auto-refresh device status every 30 seconds
+    const interval = setInterval(fetchDevices, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -282,9 +291,13 @@ export default function DevicesPage() {
     setSelectedDeviceIds(new Set(onlineIds));
   }
 
+  // Device is online if last_seen within 1 minute
   const isOnline = (device: Device) => {
-    return new Date(device.last_seen) > new Date(Date.now() - 5 * 60 * 1000);
+    return new Date(device.last_seen) > new Date(Date.now() - 60 * 1000);
   };
+
+  const onlineDevices = devices.filter(isOnline);
+  const offlineDevices = devices.filter(d => !isOnline(d));
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -307,15 +320,13 @@ export default function DevicesPage() {
     );
   }
 
-  const onlineCount = devices.filter(isOnline).length;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Devices</h1>
           <p className="text-gray-600">
-            {devices.length} devices ({onlineCount} online)
+            {devices.length} devices ({onlineDevices.length} online, {offlineDevices.length} offline)
             {bulkMode && selectedDeviceIds.size > 0 && (
               <span className="ml-2 text-red-600 font-medium">
                 • {selectedDeviceIds.size} selected
@@ -371,7 +382,7 @@ export default function DevicesPage() {
               className="flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg hover:bg-gray-50"
             >
               <div className="w-3 h-3 bg-green-500 rounded-full" />
-              Select Online ({onlineCount})
+              Select Online ({onlineDevices.length})
             </button>
             <button
               onClick={() => setSelectedDeviceIds(new Set())}
@@ -396,51 +407,136 @@ export default function DevicesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Device List */}
         <div className="bg-white rounded-xl shadow-sm border">
-          <div className="p-4 border-b">
-            <h2 className="font-semibold">All Devices ({devices.length})</h2>
+          {/* Online Devices Section */}
+          <div className="p-4 border-b bg-green-50">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+              <h2 className="font-semibold text-green-800">Online ({onlineDevices.length})</h2>
+            </div>
           </div>
-          <div className="divide-y max-h-[600px] overflow-auto">
-            {devices.map((device) => (
-              <div
-                key={device.id}
-                className={`flex items-center ${
-                  !bulkMode && selectedDevice?.id === device.id ? 'bg-red-50 border-l-4 border-red-500' : ''
-                }`}
-              >
-                {bulkMode && (
-                  <button
-                    onClick={() => toggleDeviceSelection(device.id)}
-                    className="p-4 hover:bg-gray-50"
-                  >
-                    {selectedDeviceIds.has(device.id) ? (
-                      <CheckSquare className="w-5 h-5 text-red-600" />
-                    ) : (
-                      <Square className="w-5 h-5 text-gray-400" />
-                    )}
-                  </button>
-                )}
-                <button
-                  onClick={() => !bulkMode && setSelectedDevice(device)}
-                  className={`flex-1 p-4 text-left hover:bg-gray-50 transition-colors ${
-                    bulkMode ? '' : 'cursor-pointer'
+          <div className="divide-y max-h-[300px] overflow-auto">
+            {onlineDevices.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                No devices online
+              </div>
+            ) : (
+              onlineDevices.map((device) => (
+                <div
+                  key={device.id}
+                  className={`flex items-center ${
+                    !bulkMode && selectedDevice?.id === device.id ? 'bg-red-50 border-l-4 border-red-500' : ''
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${isOnline(device) ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {device.hostname}
-                      </p>
-                      <p className="text-sm text-gray-500">{device.os_version}</p>
+                  {bulkMode && (
+                    <button
+                      onClick={() => toggleDeviceSelection(device.id)}
+                      className="p-4 hover:bg-gray-50"
+                    >
+                      {selectedDeviceIds.has(device.id) ? (
+                        <CheckSquare className="w-5 h-5 text-red-600" />
+                      ) : (
+                        <Square className="w-5 h-5 text-gray-400" />
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => !bulkMode && setSelectedDevice(device)}
+                    className={`flex-1 p-4 text-left hover:bg-gray-50 transition-colors ${
+                      bulkMode ? '' : 'cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-green-500 rounded-full" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">
+                          {device.hostname}
+                        </p>
+                        <p className="text-sm text-gray-500">{device.os_version}</p>
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2">
-                    {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
-                  </p>
-                </button>
-              </div>
-            ))}
+                    <p className="text-xs text-gray-400 mt-2">
+                      {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
+                    </p>
+                  </button>
+                </div>
+              ))
+            )}
           </div>
+
+          {/* Offline Devices Section (Collapsible) */}
+          {offlineDevices.length > 0 && (
+            <>
+              <button
+                onClick={() => setOfflineCollapsed(!offlineCollapsed)}
+                className="w-full p-4 border-t bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-gray-400 rounded-full" />
+                  <h2 className="font-semibold text-gray-600">Offline ({offlineDevices.length})</h2>
+                </div>
+                {offlineCollapsed ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </button>
+              {!offlineCollapsed && (
+                <div className="divide-y max-h-[200px] overflow-auto bg-gray-50/50">
+                  {offlineDevices.map((device) => (
+                    <div
+                      key={device.id}
+                      className={`flex items-center opacity-60 ${
+                        !bulkMode && selectedDevice?.id === device.id ? 'bg-red-50 border-l-4 border-red-500 opacity-100' : ''
+                      }`}
+                    >
+                      {bulkMode && (
+                        <button
+                          onClick={() => toggleDeviceSelection(device.id)}
+                          className="p-4 hover:bg-gray-100"
+                        >
+                          {selectedDeviceIds.has(device.id) ? (
+                            <CheckSquare className="w-5 h-5 text-red-600" />
+                          ) : (
+                            <Square className="w-5 h-5 text-gray-400" />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => !bulkMode && setSelectedDevice(device)}
+                        className={`flex-1 p-4 text-left hover:bg-gray-100 transition-colors ${
+                          bulkMode ? '' : 'cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-gray-400 rounded-full" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-700 truncate">
+                              {device.hostname}
+                            </p>
+                            <p className="text-sm text-gray-500">{device.os_version}</p>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeviceToDelete(device);
+                              setShowDeleteConfirm(true);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Remove device"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Last seen {formatDistanceToNow(new Date(device.last_seen), { addSuffix: true })}
+                        </p>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Device Details & Commands */}
